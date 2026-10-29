@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HotelRoom, fetchRooms, fetchSettings, buildWhatsAppLink } from '../services/apiService';
+import { Reveal } from '../lib/Reveal';
 
 interface RoomAvailabilitySectionProps {
   onViewRoomDetails?: (room: HotelRoom) => void;
@@ -96,6 +97,7 @@ export const RoomAvailabilitySection: React.FC<RoomAvailabilitySectionProps> = (
 
   return (
     <section id="availability" className="py-20 bg-white border-t border-gray-100">
+      <Reveal>
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-10">
@@ -246,7 +248,7 @@ export const RoomAvailabilitySection: React.FC<RoomAvailabilitySectionProps> = (
               return (
                 <div
                   key={room.id}
-                  className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 flex flex-col group"
+                  className="card-hover-elevate bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg duration-300 border border-gray-100 flex flex-col group"
                 >
                   {/* Photo Container */}
                   <div className="h-44 w-full relative overflow-hidden bg-gray-100">
@@ -318,6 +320,7 @@ export const RoomAvailabilitySection: React.FC<RoomAvailabilitySectionProps> = (
           </div>
         )}
       </div>
+      </Reveal>
     </section>
   );
 };

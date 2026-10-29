@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Reveal } from '../lib/Reveal';
 
 const PARKING_IMAGES = [
   {
@@ -40,6 +41,7 @@ export const ParkingSection: React.FC = () => {
 
   return (
     <section id="parking" className="py-20 bg-blue-950 text-white">
+      <Reveal>
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
 
         {/* Section Header */}
@@ -115,6 +117,7 @@ export const ParkingSection: React.FC = () => {
           </div>
         </div>
       </div>
+      </Reveal>
 
       {/* Lightbox */}
       {lightbox !== null && (

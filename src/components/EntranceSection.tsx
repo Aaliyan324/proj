@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FacilitySection, fetchFacilities } from '../services/apiService';
+import { Reveal } from '../lib/Reveal';
 
 interface EntranceSectionProps {
   onExploreRooms?: () => void;
@@ -27,6 +28,7 @@ export const EntranceSection: React.FC<EntranceSectionProps> = ({ onExploreRooms
 
   return (
     <section id="entrance" className="py-20 bg-white border-t border-gray-100">
+      <Reveal>
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
           
@@ -147,6 +149,7 @@ export const EntranceSection: React.FC<EntranceSectionProps> = ({ onExploreRooms
           </div>
         </div>
       </div>
+      </Reveal>
     </section>
   );
 };

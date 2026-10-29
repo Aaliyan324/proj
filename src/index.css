@@ -195,8 +195,38 @@ h1, h2, h3, h4, h5, h6, .heading-font {
   padding-left: 4px;
 }
 
-/* Smooth Scrolling */
+/* Smooth Scrolling — Lenis drives the page scroll (see src/lib/motion.ts).
+   Native scroll-behavior stays off so it doesn't fight Lenis' animation loop;
+   reduced-motion users get plain instant scrolling and no transitions. */
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Card hover elevation — restrained lift for room/availability/gallery cards */
+.card-hover-elevate {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.card-hover-elevate:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(19, 53, 123, 0.16);
+}
+
 

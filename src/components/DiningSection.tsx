@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FoodItem, fetchFood, fetchSettings, buildFoodWhatsAppLink } from '../services/apiService';
+import { Reveal } from '../lib/Reveal';
 
 export const DiningSection: React.FC = () => {
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
@@ -35,6 +36,7 @@ export const DiningSection: React.FC = () => {
 
   return (
     <section id="dining" className="py-20 bg-white">
+      <Reveal stagger={0.12}>
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
@@ -72,7 +74,7 @@ export const DiningSection: React.FC = () => {
               return (
                 <div
                   key={food.id}
-                  className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col group"
+                  className="card-hover-elevate bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl duration-300 border border-gray-100 flex flex-col group"
                 >
                   {/* Food Thumbnail */}
                   <div className="h-48 w-full relative overflow-hidden bg-gray-100">
@@ -142,6 +144,7 @@ export const DiningSection: React.FC = () => {
           </div>
         )}
       </div>
+      </Reveal>
     </section>
   );
 };

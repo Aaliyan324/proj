@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HotelRoom, fetchRooms, fetchSettings, buildWhatsAppLink } from '../services/apiService';
+import { Reveal } from '../lib/Reveal';
 
 interface RoomsSectionProps {
   onViewRoomDetails?: (room: HotelRoom) => void;
@@ -51,6 +52,7 @@ export const RoomsSection: React.FC<RoomsSectionProps> = ({ onViewRoomDetails })
 
   return (
     <section id="rooms" className="py-20 bg-gray-50 border-t border-gray-100">
+      <Reveal>
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-12">
@@ -121,7 +123,7 @@ export const RoomsSection: React.FC<RoomsSectionProps> = ({ onViewRoomDetails })
               return (
                 <div
                   key={room.id}
-                  className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col group"
+                  className="card-hover-elevate bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl duration-300 border border-gray-100 flex flex-col group"
                 >
                   {/* Image Container with Badges */}
                   <div className="h-52 w-full relative overflow-hidden bg-gray-100">
@@ -242,6 +244,7 @@ export const RoomsSection: React.FC<RoomsSectionProps> = ({ onViewRoomDetails })
           </div>
         )}
       </div>
+      </Reveal>
     </section>
   );
 };

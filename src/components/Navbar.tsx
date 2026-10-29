@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HOTEL_INFO } from '../data/hotelData';
 import { fetchSettings, buildWhatsAppLink } from '../services/apiService';
+import { scrollToTarget } from '../lib/motion';
 
 interface NavbarProps {
   onOpenBooking: () => void;
@@ -126,10 +127,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     setMenuOpen(false);
     // Release the scroll lock synchronously so smooth scrolling can run.
     document.body.style.overflow = '';
-    const element = document.querySelector(href);
-    if (element) {
-      requestAnimationFrame(() => element.scrollIntoView({ behavior: 'smooth' }));
-    }
+    // Lenis-aware scroll (falls back to native smooth scroll when reduced motion is on).
+    requestAnimationFrame(() => scrollToTarget(href, { offset: -16 }));
   };
 
   const handleWhatsAppDirect = () => {
@@ -197,12 +196,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                     handleNavClick(item.href);
                   }}
                   aria-current={isActive ? 'true' : undefined}
-                  className={`px-2 2xl:px-3 py-1.5 text-sm font-medium transition-colors relative whitespace-nowrap ${
+                  className={`px-2 2xl:px-3 py-1.5 text-sm font-medium transition-colors relative whitespace-nowrap group ${
                     isActive ? 'text-amber-300 font-bold' : 'text-white/90 hover:text-white'
                   }`}
                 >
                   {item.label}
-                  {isActive && <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-amber-400" />}
+                  <span
+                    aria-hidden="true"
+                    className={`absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-amber-400 transition-transform duration-300 origin-center ${
+                      isActive ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-50'
+                    }`}
+                  />
                 </a>
               );
             })}

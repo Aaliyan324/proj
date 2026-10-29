@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { HOTEL_INFO } from '../data/hotelData';
 import { fetchSettings, buildWhatsAppLink } from '../services/apiService';
+import { Reveal } from '../lib/Reveal';
 
 export const ContactSection: React.FC = () => {
   const [whatsappNumber, setWhatsappNumber] = useState('');
@@ -44,6 +45,7 @@ export const ContactSection: React.FC = () => {
 
   return (
     <section id="contact" className="py-20 bg-gray-100 overflow-x-hidden">
+      <Reveal>
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
@@ -196,6 +198,7 @@ export const ContactSection: React.FC = () => {
         </div>
 
       </div>
+      </Reveal>
     </section>
   );
 };

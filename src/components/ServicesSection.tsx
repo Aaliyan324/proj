@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { RESORT_AMENITIES, AmenityService } from '../data/hotelData';
+import { Reveal } from '../lib/Reveal';
 
 export const ServicesSection: React.FC = () => {
   const [selectedService, setSelectedService] = useState<AmenityService | null>(null);
@@ -9,6 +10,7 @@ export const ServicesSection: React.FC = () => {
 
   return (
     <section id="services" className="py-20 bg-gray-100">
+      <Reveal>
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
@@ -132,6 +134,7 @@ export const ServicesSection: React.FC = () => {
           </div>
         )}
       </div>
+      </Reveal>
     </section>
   );
 };

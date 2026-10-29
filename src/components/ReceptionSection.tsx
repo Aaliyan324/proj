@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FacilitySection, fetchFacilities, fetchSettings, buildWhatsAppLink } from '../services/apiService';
+import { Reveal } from '../lib/Reveal';
 
 export const ReceptionSection: React.FC = () => {
   const [reception, setReception] = useState<FacilitySection | null>(null);
@@ -30,6 +31,7 @@ export const ReceptionSection: React.FC = () => {
 
   return (
     <section id="reception" className="py-20 bg-gray-50 border-t border-gray-100">
+      <Reveal>
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
           
@@ -134,6 +136,7 @@ export const ReceptionSection: React.FC = () => {
 
         </div>
       </div>
+      </Reveal>
     </section>
   );
 };

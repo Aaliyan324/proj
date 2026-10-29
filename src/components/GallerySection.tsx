@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DynamicGalleryItem, fetchGallery } from '../services/apiService';
 import { GALLERY_ITEMS } from '../data/hotelData';
+import { Reveal } from '../lib/Reveal';
 
 export const GallerySection: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -94,6 +95,7 @@ export const GallerySection: React.FC = () => {
 
   return (
     <section id="gallery" className="py-20 bg-white border-t border-gray-100">
+      <Reveal>
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-10">
@@ -161,7 +163,7 @@ export const GallerySection: React.FC = () => {
                 <div
                   key={item.id}
                   onClick={() => setLightboxIndex(index)}
-                  className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col cursor-pointer"
+                  className="card-hover-elevate group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl duration-300 border border-gray-100 flex flex-col cursor-pointer"
                 >
                   {/* Photo Container */}
                   <div className="relative h-60 w-full overflow-hidden bg-gray-100">
@@ -334,6 +336,7 @@ export const GallerySection: React.FC = () => {
           </div>
         )}
       </div>
+      </Reveal>
     </section>
   );
 };

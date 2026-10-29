@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { fetchSettings, buildWhatsAppLink } from '../services/apiService';
+import { prefersReducedMotion, scrollToTarget } from '../lib/motion';
 
 interface HeroCarouselProps {
   onSearch: (criteria: {
@@ -35,6 +38,7 @@ const SLIDES = [
 export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSearch, onQuickBook }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [whatsappNumber, setWhatsappNumber] = useState('');
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // Search state
   const today = new Date().toISOString().split('T')[0];
@@ -53,6 +57,25 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSearch, onQuickBoo
     }, 6500);
     return () => clearInterval(timer);
   }, []);
+
+  // Slide entrance: text reveal + gentle image zoom. Re-runs per slide change,
+  // scoped to this component and cleaned up automatically by useGSAP.
+  useGSAP(
+    () => {
+      if (prefersReducedMotion()) return;
+      gsap.fromTo(
+        `.hero-slide[data-slide="${currentSlide}"] .hero-content > *`,
+        { autoAlpha: 0, y: 26 },
+        { autoAlpha: 1, y: 0, duration: 0.7, ease: 'power2.out', stagger: 0.12, overwrite: true }
+      );
+      gsap.fromTo(
+        `.hero-slide[data-slide="${currentSlide}"] img`,
+        { scale: 1.08 },
+        { scale: 1, duration: 6, ease: 'power1.out', overwrite: 'auto' }
+      );
+    },
+    { dependencies: [currentSlide], scope: rootRef }
+  );
 
   const handlePrev = () => {
     setCurrentSlide((prev) => (prev - 1 + SLIDES.length) % SLIDES.length);
@@ -73,7 +96,7 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSearch, onQuickBoo
 
     const roomsSection = document.getElementById('rooms');
     if (roomsSection) {
-      roomsSection.scrollIntoView({ behavior: 'smooth' });
+      scrollToTarget(roomsSection, { offset: -20 });
     }
   };
 
@@ -83,13 +106,14 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSearch, onQuickBoo
   };
 
   return (
-    <div id="home" className="relative w-full overflow-hidden bg-gray-900">
+    <div id="home" ref={rootRef} className="relative w-full overflow-hidden bg-gray-900">
       {/* Carousel Container */}
       <div className="relative h-[620px] lg:h-[720px] w-full">
         {SLIDES.map((slide, index) => (
           <div
             key={index}
-            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+            data-slide={index}
+            className={`hero-slide absolute inset-0 transition-opacity duration-1000 ease-in-out ${
               index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
             }`}
           >
@@ -97,14 +121,14 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSearch, onQuickBoo
             <img
               src={slide.image}
               alt={slide.title}
-              className="w-full h-full object-cover transform scale-105 transition-transform duration-10000"
+              className="w-full h-full object-cover"
             />
             {/* Dark Elegant Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-gray-950/95 via-blue-950/70 to-black/50" />
 
             {/* Slide Content */}
             <div className="absolute inset-0 flex items-center justify-center text-center px-4 lg:px-12">
-              <div className="max-w-4xl mx-auto text-white mt-[-30px]">
+              <div className="hero-content max-w-4xl mx-auto text-white mt-[-30px]">
                 <div className="inline-block mb-3 px-4 py-1.5 rounded-full bg-blue-900/60 border border-amber-400/50 backdrop-blur-sm">
                   <span className="text-amber-300 text-xs lg:text-sm font-semibold tracking-widest uppercase">
                     <i className="fa fa-hotel me-2"></i>

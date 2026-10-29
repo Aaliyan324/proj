@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { HOTEL_INFO } from '../data/hotelData';
 import { fetchSettings, buildWhatsAppLink } from '../services/apiService';
+import { Reveal } from '../lib/Reveal';
 
 interface AboutSectionProps {
   onExploreRooms: () => void;
@@ -21,6 +22,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ onExploreRooms }) =>
 
   return (
     <section id="about" className="py-20 bg-white overflow-hidden">
+      <Reveal>
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           
@@ -144,6 +146,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ onExploreRooms }) =>
 
         </div>
       </div>
+      </Reveal>
     </section>
   );
 };

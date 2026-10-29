@@ -20,6 +20,7 @@ import { AdminLoginModal } from './components/AdminLoginModal';
 import { AdminDashboardModal } from './components/AdminDashboardModal';
 
 import { HotelRoom, isAdminAuthenticated, adminLogout } from './services/apiService';
+import { initSmoothScroll, scrollToTarget } from './lib/motion';
 
 export default function App() {
   // Admin Authentication State
@@ -42,6 +43,10 @@ export default function App() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  // Public-site smooth scrolling (Lenis + GSAP ticker integration).
+  // Scoped here on purpose: modals and the admin dashboard keep native scrolling.
+  useEffect(() => initSmoothScroll(), []);
 
   // URL Path Detection & Route Protection
   useEffect(() => {
@@ -168,7 +173,7 @@ export default function App() {
   };
 
   const handleScrollToRooms = () => {
-    document.getElementById('rooms')?.scrollIntoView({ behavior: 'smooth' });
+    scrollToTarget('#rooms', { offset: -20 });
   };
 
   return (
