@@ -1,0 +1,202 @@
+@import "tailwindcss";
+
+:root {
+  --bs-primary: #13357B;
+  --bs-secondary: #1f05e6;
+  --bs-success: #198754;
+  --bs-warning: #ffc107;
+  --bs-danger: #dc3545;
+  --bs-light: #F2F2F2;
+  --bs-dark: #14141F;
+  --bs-gold: #c59b27;
+  --bs-font-sans-serif: "Roboto", sans-serif;
+  --bs-font-heading: "Jost", sans-serif;
+}
+
+body {
+  font-family: "Roboto", sans-serif;
+  color: #555555;
+  background-color: #ffffff;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6, .heading-font {
+  font-family: "Jost", sans-serif;
+  font-weight: 600;
+  color: #14141F;
+}
+
+/* Custom Travela Template Classes */
+.bg-hotel-primary {
+  background-color: var(--bs-primary) !important;
+}
+
+.text-hotel-primary {
+  color: var(--bs-primary) !important;
+}
+
+.bg-hotel-secondary {
+  background-color: var(--bs-secondary) !important;
+}
+
+.text-hotel-secondary {
+  color: var(--bs-secondary) !important;
+}
+
+.bg-hotel-dark {
+  background-color: var(--bs-dark) !important;
+}
+
+.bg-hotel-light {
+  background-color: var(--bs-light) !important;
+}
+
+/* Section Title with Lines */
+.section-title {
+  position: relative;
+  display: inline-block;
+  text-transform: uppercase;
+  color: var(--bs-primary);
+  letter-spacing: 2px;
+  font-weight: 600;
+}
+
+.section-title::before {
+  content: "";
+  width: 50px;
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  margin-right: -50px;
+  border-top: 2px solid var(--bs-primary);
+}
+
+.section-title::after {
+  content: "";
+  width: 50px;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  margin-left: -50px;
+  border-top: 2px solid var(--bs-primary);
+}
+
+/* White Section Title */
+.section-title-white {
+  position: relative;
+  display: inline-block;
+  text-transform: uppercase;
+  color: #ffffff;
+  letter-spacing: 2px;
+  font-weight: 600;
+}
+
+.section-title-white::before {
+  content: "";
+  width: 50px;
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  margin-right: -50px;
+  border-top: 2px solid #ffffff;
+}
+
+.section-title-white::after {
+  content: "";
+  width: 50px;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  margin-left: -50px;
+  border-top: 2px solid #ffffff;
+}
+
+/* Buttons */
+.btn-hotel-primary {
+  background-color: var(--bs-primary);
+  color: #ffffff;
+  transition: all 0.4s ease;
+  box-shadow: inset 0 0 0 0 var(--bs-primary);
+}
+
+.btn-hotel-primary:hover {
+  background-color: #0f2a62;
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(19, 53, 123, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-hotel-outline {
+  background-color: transparent;
+  color: var(--bs-primary);
+  border: 1px solid var(--bs-primary);
+  transition: all 0.4s ease;
+}
+
+.btn-hotel-outline:hover {
+  background-color: var(--bs-primary);
+  color: #ffffff;
+}
+
+/* Service Card Transitions */
+.service-content-inner {
+  transition: all 0.4s ease;
+}
+
+.service-content-inner:hover {
+  background-color: var(--bs-primary) !important;
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(19, 53, 123, 0.2);
+}
+
+.service-content-inner:hover h4,
+.service-content-inner:hover h5,
+.service-content-inner:hover p,
+.service-content-inner:hover i,
+.service-content-inner:hover span {
+  color: #ffffff !important;
+}
+
+/* Room & Blog Card Zoom */
+.room-img-container {
+  overflow: hidden;
+  position: relative;
+}
+
+.room-img-container img {
+  transition: transform 0.6s ease;
+}
+
+.room-card:hover .room-img-container img {
+  transform: scale(1.08);
+}
+
+/* Subscribe Banner */
+.subscribe-banner {
+  background: linear-gradient(rgba(19, 53, 123, 0.85), rgba(19, 53, 123, 0.85)),
+              url('https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1600&q=80');
+  background-attachment: fixed;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+/* Footer Links */
+.footer a {
+  transition: all 0.3s ease;
+}
+
+.footer a:hover {
+  color: #ffc107 !important;
+  padding-left: 4px;
+}
+
+/* Smooth Scrolling */
+html {
+  scroll-behavior: smooth;
+}
+

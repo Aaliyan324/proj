@@ -1,0 +1,6 @@
+{
+  "name": "Grand Travela Hotel & Resort",
+  "description": "Red Rock Casino Resort & Spa in Las Vegas (Summerlin) - AAA Four Diamond luxury resort featuring canyon & strip view suites, 3-acre Sandbar pool backyard, Well & Being spa, world-class dining, gaming, and booking engine.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

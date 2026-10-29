@@ -1,0 +1,16 @@
+[
+  {
+    "id": "item-1791025005328-vs76",
+    "name": "Rice",
+    "description": "White Rice",
+    "price": 350,
+    "imageUrl": "/uploads/img_1791024997069_val5a6.jpeg",
+    "thumbnailUrl": "/uploads/img_1791024997069_val5a6.jpeg",
+    "availableStartDate": "2026-10-03",
+    "availableStartTime": "14:00",
+    "availableEndDate": "2026-12-31",
+    "availableEndTime": "12:00",
+    "createdAt": "2026-10-03T10:56:45.328Z",
+    "updatedAt": "2026-10-03T10:56:45.328Z"
+  }
+]
