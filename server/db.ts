@@ -176,11 +176,54 @@ const SCHEMA_STATEMENTS: string[] = [
      size_bytes INTEGER NOT NULL,
      created_at TEXT NOT NULL
    )`,
+  // Hotel listings (multi-hotel directory). Additive, non-destructive.
+  `CREATE TABLE IF NOT EXISTS hotels (
+     id TEXT PRIMARY KEY,
+     name TEXT NOT NULL,
+     slug TEXT UNIQUE NOT NULL,
+     short_description TEXT NOT NULL DEFAULT '',
+     description TEXT NOT NULL DEFAULT '',
+     category TEXT NOT NULL DEFAULT '',
+     star_rating INTEGER NOT NULL DEFAULT 0,
+     country TEXT NOT NULL DEFAULT '',
+     city TEXT NOT NULL DEFAULT '',
+     area TEXT NOT NULL DEFAULT '',
+     address TEXT NOT NULL DEFAULT '',
+     latitude NUMERIC NULL,
+     longitude NUMERIC NULL,
+     price_per_night NUMERIC NOT NULL DEFAULT 0,
+     currency TEXT NOT NULL DEFAULT 'PKR',
+     discount_price NUMERIC NULL,
+     facilities TEXT NOT NULL DEFAULT '[]',
+     contact_phone TEXT NOT NULL DEFAULT '',
+     contact_email TEXT NOT NULL DEFAULT '',
+     website TEXT NOT NULL DEFAULT '',
+     status TEXT NOT NULL DEFAULT 'draft',
+     created_at TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   )`,
+  // Image metadata only. Binary lives in private Vercel Blob; we store the
+  // stable blob pathname + url, never signed/temporary URLs, never bytes.
+  `CREATE TABLE IF NOT EXISTS hotel_images (
+     id TEXT PRIMARY KEY,
+     hotel_id TEXT NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+     blob_url TEXT NOT NULL,
+     blob_pathname TEXT NOT NULL,
+     content_type TEXT NOT NULL,
+     size_bytes INTEGER NOT NULL DEFAULT 0,
+     role TEXT NOT NULL DEFAULT 'gallery',
+     display_order INTEGER NOT NULL DEFAULT 1,
+     created_at TEXT NOT NULL
+   )`,
   // Indexes for the hot paths
   `CREATE INDEX IF NOT EXISTS idx_rooms_published_order ON rooms (is_published, display_order)`,
   `CREATE INDEX IF NOT EXISTS idx_gallery_published_order ON gallery_items (is_published, display_order)`,
   `CREATE INDEX IF NOT EXISTS idx_facility_published_order ON facility_sections (is_published, display_order)`,
   `CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_hotels_status ON hotels (status)`,
+  `CREATE INDEX IF NOT EXISTS idx_hotels_slug ON hotels (slug)`,
+  `CREATE INDEX IF NOT EXISTS idx_hotels_city_price ON hotels (city, price_per_night)`,
+  `CREATE INDEX IF NOT EXISTS idx_hotel_images_hotel ON hotel_images (hotel_id, role, display_order)`,
 ];
 
 /**

@@ -29,6 +29,7 @@ import {
   getAdminUser,
   buildWhatsAppLink
 } from '../services/apiService';
+import { AdminHotelListings } from './admin/AdminHotelListings';
 
 interface AdminDashboardModalProps {
   isOpen: boolean;
@@ -41,7 +42,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   onClose,
   onLogout
 }) => {
-  const [activeTab, setActiveTab] = useState<'rooms' | 'facilities' | 'gallery' | 'food' | 'settings' | 'security'>('rooms');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'hotels' | 'facilities' | 'gallery' | 'food' | 'settings' | 'security'>('rooms');
   
   // Data States
   const [rooms, setRooms] = useState<HotelRoom[]>([]);
@@ -663,6 +664,18 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             </button>
 
             <button
+              onClick={() => setActiveTab('hotels')}
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                activeTab === 'hotels'
+                  ? 'bg-hotel-primary text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <i className="fa fa-hotel text-amber-500"></i>
+              <span>Hotel Listings</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('facilities')}
               className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center space-x-2 cursor-pointer ${
                 activeTab === 'facilities'
@@ -753,6 +766,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
         {/* Main Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+
+          {/* ============================================================== */}
+          {/* TAB: HOTEL LISTINGS MANAGEMENT (create/edit/publish + images)  */}
+          {/* ============================================================== */}
+          {activeTab === 'hotels' && (
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200">
+              <AdminHotelListings />
+            </div>
+          )}
 
           {/* ============================================================== */}
           {/* TAB 1: ROOM MANAGEMENT & LIVE AVAILABILITY                     */}

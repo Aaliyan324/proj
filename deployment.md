@@ -17,7 +17,8 @@ upload storage in the database, environment variables, and go-live verification.
 | Node.js | **v22.5 or newer** (the legacy-data migration script reads `data/hotel.db` with the built-in `node:sqlite`; the server itself only needs an async PG driver and runs on Vercel's Node 22 runtime) |
 | Package manager | npm (lockfile: `package-lock.json`) |
 | Accounts | GitHub, [Neon](https://console.neon.tech) (Free tier works), [Vercel](https://vercel.com) (Hobby plan works) |
-| Services | Only Neon. Object storage (e.g. Vercel Blob) is **not** required — uploaded images are stored as `BYTEA` rows in Neon (`uploaded_files` table) |
+| Services | Neon (required) and **Vercel Blob** (required only for the *Hotel Listings* feature). Legacy images — rooms, food, gallery — remain stored as `BYTEA` rows in Neon (`uploaded_files`). New hotel cover/gallery images are stored in a **private** Vercel Blob store and delivered through an authorization proxy; nothing else on the site needs Blob, so the rest of the app runs fine without it |
+| Blob runtime | The `@vercel/blob` SDK only talks to Blob when `BLOB_READ_WRITE_TOKEN` (or Vercel OIDC + `BLOB_STORE_ID`) is present. Hotel image routes return a clear `503` when it is unset — the token is server-only and never reaches the browser |
 
 Plan limits worth knowing (documented, not required to buy your way around):
 
@@ -40,6 +41,9 @@ copy .env.example .env        # Windows
 
 # 3. Put your Neon pooled connection string into .env:
 #    DATABASE_URL=postgres://...ep-xxx-pooler.neon.tech/neondb?sslmode=require
+#    (Only needed for Hotel Listings image upload/delivery) add your private
+#    Blob token — see section C2. It is server-only; never a NEXT_PUBLIC_/client var:
+#    BLOB_READ_WRITE_TOKEN=blob_rw_...
 
 # 4. Apply the schema (idempotent, non-destructive — CREATE TABLE IF NOT EXISTS)
 npm run db:migrate
@@ -108,6 +112,44 @@ the dashboard immediately** — the password is stored with bcrypt.
    - Auth failure after rotating a password → update `DATABASE_URL` **and
      redeploy** (see E8).
 
+## C2. Vercel Blob (Hotel Listing Images — private store)
+
+The *Hotel Listings* feature stores cover/gallery images in a **private** Vercel
+Blob store. This is optional for the rest of the site but required before any
+hotel image upload or delivery can be tested. The design keeps the raw blob
+URLs private: the browser only ever requests `/api/hotel-image/:id`, an
+authorization proxy that fetches the private blob server-side.
+
+1. **Create a private Blob store**: Vercel Dashboard → your Project →
+   *Storage* → *Blob* → *Create a Blob store*. Choose **Private** access
+   (never Public for this feature). Connect it to the same project you deploy.
+2. **Get the read/write token**: the store page shows a `BLOB_READ_WRITE_TOKEN`
+   that begins with `blob_rw_`. This value grants upload + private-read + delete,
+   so treat it like a password.
+3. **Local environment** — either paste the token into `.env` as
+   `BLOB_READ_WRITE_TOKEN=` (gitignored), or, once the store is linked to the
+   project, pull all Vercel env automatically:
+   ```bash
+   npm i -g vercel      # once
+   vercel login
+   vercel env pull .env # writes real values into a local .env
+   ```
+   The repo ships only a `BLOB_READ_WRITE_TOKEN=` placeholder in `.env.example`.
+4. **Vercel environment**: adding the store via *Storage → Blob* usually links
+   the token automatically for deployed functions (via OIDC). If you manage it
+   manually, add `BLOB_READ_WRITE_TOKEN` under *Settings → Environment
+   Variables* for Production, Preview and Development, then **redeploy** (E8).
+5. **No schema/DDL is needed for Blob** — Postgres only stores the stable
+   `blob_url` / `blob_pathname` (in `hotel_images`), never binary and never a
+   temporary signed URL. The `hotels` / `hotel_images` tables are created by the
+   same idempotent `ensureSchema()` / `npm run db:migrate` as everything else.
+
+Upload validation enforced server-side: content type is detected from the file's
+magic bytes (JPEG/PNG/WebP/AVIF), max 10 MB per image, and storage paths are
+random (`hotel-images/<year>/<uuid>.<ext>`) — the client filename is never
+trusted. On Vercel Hobby keep single uploads under ~3 MB (base64 JSON + the
+4.5 MB function body limit; see G).
+
 ## D. GitHub Setup
 
 This project directory may or may not already be a Git repository:
@@ -137,7 +179,10 @@ rewrite history you have already shared.**
 3. Build settings: no overrides needed. Root directory = repo root
    (where `package.json` and `api/` live).
 4. Environment Variables: add `DATABASE_URL` (Neon **pooled** string) for
-   Production and Preview. `PORT`/`DIRECT_URL` are not needed on Vercel.
+   Production and Preview. For the Hotel Listings feature also make the private
+   Blob store's `BLOB_READ_WRITE_TOKEN` available (auto-linked via *Storage →
+   Blob* (OIDC), or add it explicitly — see C2). `PORT`/`DIRECT_URL` are not
+   needed on Vercel.
 5. Click **Deploy**. One serverless function is created (`api/index`) — all
    `/api/*` and `/uploads/*` requests route to it; everything else is served
    as static files from `dist/` with an SPA fallback (deep links like
@@ -164,6 +209,9 @@ Only the features that exist in this project:
 - [ ] Dining CRUD persists; image upload stores the file in Neon and `/uploads/<name>` serves it (works in production where disk is read-only).
 - [ ] WhatsApp number setting updates and is reflected on the public site booking buttons.
 - [ ] Password change works and re-login with the new password succeeds (bcrypt).
+- [ ] **Hotel Listings (public)**: `/hotels` loads only `published` listings; server-side search / city / price / category / facility filters, sort and pagination change the results; unknown `/hotels/:slug` shows the not-found state; cover images render via `/api/hotel-image/:id`.
+- [ ] **Hotel Listings (admin)**: create a draft, upload a cover + gallery images (progress + preview shown), reorder, remove; Publish is blocked until required fields + a cover exist; publishing then makes it appear publicly, unpublishing hides it again. Confirm-before-delete works.
+- [ ] **Private delivery / authz**: a draft or archived listing's image returns **403** to an anonymous visitor and renders for a logged-in admin; a published listing's image is public. The raw `blobs.vercel-storage.com` URL is never present in page HTML or client JS. Deleting a listing removes only image blobs not referenced elsewhere.
 - [ ] Responsive: 1440px, 768px, 390px widths; side-menu panel opens/closes; modals fit.
 - [ ] Browser console: no errors on any public page.
 - [ ] Vercel → Observability → Logs: no unhandled function errors.
@@ -183,6 +231,10 @@ Only the features that exist in this project:
 | 500 on `/api/*` only in production, fine locally | Usually a stale environment variable — redeploy. Then check Vercel logs for the exact Postgres error. |
 | SPA deep link (`/admin/login`) shows 404 | Confirm `vercel.json` rewrites were deployed (they're required for this non-Next.js setup). |
 | Animations not visible | Expected with `prefers-reduced-motion`; content is intentionally visible without motion. |
+| Hotel image upload returns `503` / "Blob is not configured" | `BLOB_READ_WRITE_TOKEN` (or OIDC + `BLOB_STORE_ID`) is missing in that environment. Link the private Blob store to the project or add the env var, then redeploy (E8). Non-hotel features are unaffected. |
+| Hotel upload fails with `400` "Unsupported image format" | The file's magic bytes are not JPEG/PNG/WebP/AVIF (the declared type is ignored on purpose). Re-export a supported image. |
+| Uploaded hotel image shows a broken `<img>` | The proxy fetches the private blob server-side; a `404` means the blob is gone, a `403` means the listing is draft/archived and you are not admin-authenticated, a `502` means Blob was briefly unreachable. Check Vercel logs for the `[HotelImage]` line. |
+| Draft/archived hotel image is (or is not) visible to the public | Expected: published listings serve images publicly; draft/archived require an admin session. If a non-published image loads for an anonymous user, verify the store is **Private** and you did not point `<img>` at the raw blob URL — it must use `/api/hotel-image/:id`. |
 
 ## Commands Reference
 

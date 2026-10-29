@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { HOTEL_INFO } from '../data/hotelData';
 import { fetchSettings, buildWhatsAppLink } from '../services/apiService';
 import { scrollToTarget } from '../lib/motion';
@@ -43,6 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAdminDashboard,
   activeSection,
 }) => {
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navVisible, setNavVisible] = useState(true);
   const [whatsappNumber, setWhatsappNumber] = useState('');
@@ -215,6 +217,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Desktop CTAs */}
           <div className="hidden lg:flex items-center space-x-3 shrink-0">
             <button
+              onClick={() => navigate('/hotels')}
+              className="hidden xl:flex text-xs px-3.5 py-2 rounded-full whitespace-nowrap border border-amber-400/60 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20 transition-all items-center space-x-1.5 font-bold cursor-pointer"
+              title="Browse all hotels"
+            >
+              <i className="fa fa-hotel"></i>
+              <span>Hotels</span>
+            </button>
+            <button
               onClick={handleWhatsAppDirect}
               className="hidden 2xl:flex text-xs px-3.5 py-2 rounded-full whitespace-nowrap border border-emerald-400/80 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-all flex items-center space-x-1.5 font-bold cursor-pointer"
               title="Chat directly on WhatsApp"
@@ -315,6 +325,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <nav aria-label="Site sections" className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="space-y-1">
+            <li>
+              <button
+                type="button"
+                onClick={() => { setMenuOpen(false); document.body.style.overflow = ''; navigate('/hotels'); }}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-base font-semibold text-amber-300 bg-blue-900/40 border border-amber-400/30 hover:bg-blue-900/60 transition-colors cursor-pointer"
+              >
+                <span><i className="fa fa-hotel me-2"></i>Hotels</span>
+                <i className="fa fa-arrow-right text-xs"></i>
+              </button>
+            </li>
             {NAV_ITEMS.map((item) => {
               const isActive = activeSection === item.id;
               return (

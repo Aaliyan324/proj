@@ -42,6 +42,12 @@ export const Footer: React.FC<FooterProps> = ({
             </h4>
             <ul className="space-y-2.5 text-xs sm:text-sm">
               <li>
+                <a href="/hotels" className="hover:text-amber-400 transition-colors flex items-center">
+                  <i className="fa fa-chevron-right text-[10px] text-amber-400 me-2"></i>
+                  Browse Hotels
+                </a>
+              </li>
+              <li>
                 <a href="#home" className="hover:text-amber-400 transition-colors flex items-center">
                   <i className="fa fa-chevron-right text-[10px] text-amber-400 me-2"></i>
                   Home

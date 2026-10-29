@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Topbar } from './components/Topbar';
 import { Navbar } from './components/Navbar';
 import { HeroCarousel } from './components/HeroCarousel';
@@ -21,8 +22,10 @@ import { AdminDashboardModal } from './components/AdminDashboardModal';
 
 import { HotelRoom, isAdminAuthenticated, adminLogout } from './services/apiService';
 import { initSmoothScroll, scrollToTarget } from './lib/motion';
+import { HotelsPage } from './pages/HotelsPage';
+import { HotelDetailPage } from './pages/HotelDetailPage';
 
-export default function App() {
+function Home() {
   // Admin Authentication State
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminLoginOpen, setAdminLoginOpen] = useState(false);
@@ -280,5 +283,19 @@ export default function App() {
         onLogout={handleAdminLogout}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/hotels" element={<HotelsPage />} />
+        <Route path="/hotels/:slug" element={<HotelDetailPage />} />
+        {/* Home also serves /, /admin/* and any legacy path so the existing
+            History-API-driven admin modal flow keeps working unchanged. */}
+        <Route path="*" element={<Home />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

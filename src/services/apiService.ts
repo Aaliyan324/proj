@@ -581,3 +581,280 @@ export function buildFoodWhatsAppLink(whatsappNumber: string, foodName: string):
   }
   return `https://wa.me/${cleanNumber}?text=${encodedMessage}`;
 }
+
+// =============================================================
+// HOTEL LISTINGS (public directory + admin management + images)
+// =============================================================
+
+export interface HotelListing {
+  id: string;
+  name: string;
+  slug: string;
+  short_description: string;
+  description: string;
+  category: string;
+  star_rating: number;
+  country: string;
+  city: string;
+  area: string;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+  price_per_night: number;
+  currency: string;
+  discount_price: number | null;
+  facilities: string[];
+  contact_phone: string;
+  contact_email: string;
+  website: string;
+  status: 'draft' | 'published' | 'archived' | string;
+  created_at: string;
+  updated_at: string;
+  cover_image_id?: string | null;
+  image_count?: number;
+}
+
+export interface HotelImage {
+  id: string;
+  role: 'cover' | 'gallery' | string;
+  content_type: string;
+  size_bytes?: number;
+  display_order: number;
+  blob_pathname?: string;
+  created_at?: string;
+}
+
+export interface HotelPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface HotelQuery {
+  q?: string;
+  city?: string;
+  category?: string;
+  facility?: string;
+  minPrice?: number | string;
+  maxPrice?: number | string;
+  sort?: 'price_asc' | 'price_desc' | 'name_asc' | 'newest' | string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface HotelPayload {
+  name: string;
+  shortDescription?: string;
+  description?: string;
+  category?: string;
+  starRating?: number;
+  country?: string;
+  city?: string;
+  area?: string;
+  address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  pricePerNight: number | string;
+  currency?: string;
+  discountPrice?: number | null;
+  facilities?: string[];
+  contactPhone?: string;
+  contactEmail?: string;
+  website?: string;
+}
+
+function buildQueryString(params: Record<string, unknown>): string {
+  const usp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== '') usp.set(k, String(v));
+  }
+  const s = usp.toString();
+  return s ? `?${s}` : '';
+}
+
+// Private-image delivery endpoint. The browser never sees the raw Blob URL.
+export function hotelImageUrl(imageId?: string | null): string {
+  return imageId ? `/api/hotel-image/${imageId}` : '';
+}
+
+// ---------- PUBLIC ----------
+
+export async function fetchHotels(query: HotelQuery = {}): Promise<{ hotels: HotelListing[]; pagination: HotelPagination }> {
+  try {
+    const res = await fetch(`/api/hotels${buildQueryString(query as Record<string, unknown>)}`);
+    const data = await res.json();
+    if (res.ok && data.success) {
+      return { hotels: data.hotels || [], pagination: data.pagination || { page: 1, pageSize: 12, total: 0, totalPages: 1 } };
+    }
+  } catch (err) {
+    console.error('Failed to fetch hotels:', err);
+    throw err;
+  }
+  return { hotels: [], pagination: { page: 1, pageSize: 12, total: 0, totalPages: 1 } };
+}
+
+export async function fetchHotelFacets(): Promise<{ cities: string[]; categories: string[]; priceBounds: { min: number; max: number } }> {
+  try {
+    const res = await fetch('/api/hotels/facets');
+    const data = await res.json();
+    if (res.ok && data.success) {
+      return { cities: data.cities || [], categories: data.categories || [], priceBounds: data.priceBounds || { min: 0, max: 0 } };
+    }
+  } catch (err) {
+    console.error('Failed to fetch hotel facets:', err);
+  }
+  return { cities: [], categories: [], priceBounds: { min: 0, max: 0 } };
+}
+
+export async function fetchHotelBySlug(slug: string): Promise<{ hotel: HotelListing; images: HotelImage[] } | null> {
+  try {
+    const res = await fetch(`/api/hotels/${encodeURIComponent(slug)}`);
+    if (res.status === 404) return null;
+    const data = await res.json();
+    if (res.ok && data.success) return { hotel: data.hotel, images: data.images || [] };
+  } catch (err) {
+    console.error('Failed to fetch hotel detail:', err);
+  }
+  return null;
+}
+
+export async function fetchRelatedHotels(slug: string): Promise<HotelListing[]> {
+  try {
+    const res = await fetch(`/api/hotels/${encodeURIComponent(slug)}/related`);
+    const data = await res.json();
+    if (res.ok && data.success) return data.hotels || [];
+  } catch (err) {
+    console.error('Failed to fetch related hotels:', err);
+  }
+  return [];
+}
+
+// ---------- ADMIN ----------
+
+export async function fetchAdminHotels(query: HotelQuery & { status?: string } = {}): Promise<{ hotels: HotelListing[]; pagination: HotelPagination }> {
+  try {
+    const res = await fetch(`/api/admin/hotels${buildQueryString(query as Record<string, unknown>)}`, { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      return { hotels: data.hotels || [], pagination: data.pagination || { page: 1, pageSize: 20, total: 0, totalPages: 1 } };
+    }
+    throw new Error(data.message || 'Failed to load hotels');
+  } catch (err) {
+    console.error('Error fetching admin hotels:', err);
+    throw err;
+  }
+}
+
+export async function fetchAdminHotel(id: string): Promise<{ hotel: HotelListing; images: HotelImage[] } | null> {
+  try {
+    const res = await fetch(`/api/admin/hotels/${id}`, { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (res.ok && data.success) return { hotel: data.hotel, images: data.images || [] };
+  } catch (err) {
+    console.error('Error fetching admin hotel:', err);
+  }
+  return null;
+}
+
+export async function addHotel(payload: HotelPayload): Promise<HotelListing> {
+  const res = await fetch('/api/admin/hotels', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (res.ok && data.success) return data.hotel;
+  throw new Error(data.message || 'Failed to create hotel');
+}
+
+export async function updateHotel(id: string, payload: Partial<HotelPayload>): Promise<HotelListing> {
+  const res = await fetch(`/api/admin/hotels/${id}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (res.ok && data.success) return data.hotel;
+  throw new Error(data.message || 'Failed to update hotel');
+}
+
+async function hotelStatusAction(id: string, action: 'publish' | 'unpublish' | 'archive'): Promise<{ success: boolean; message?: string; hotel?: HotelListing }> {
+  try {
+    const res = await fetch(`/api/admin/hotels/${id}/${action}`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json();
+    return { success: res.ok && data.success, message: data.message, hotel: data.hotel };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Action failed' };
+  }
+}
+
+export const publishHotel = (id: string) => hotelStatusAction(id, 'publish');
+export const unpublishHotel = (id: string) => hotelStatusAction(id, 'unpublish');
+export const archiveHotel = (id: string) => hotelStatusAction(id, 'archive');
+
+export async function deleteHotel(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/admin/hotels/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+    const data = await res.json();
+    return res.ok && data.success;
+  } catch (err) {
+    console.error('Error deleting hotel:', err);
+    return false;
+  }
+}
+
+// Upload a hotel image via XMLHttpRequest so real upload progress is available.
+export function uploadHotelImage(
+  hotelId: string,
+  file: File,
+  role: 'cover' | 'gallery',
+  onProgress?: (pct: number) => void
+): Promise<HotelImage> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed reading image file'));
+    reader.onload = () => {
+      const fileData = reader.result as string;
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/admin/hotels/${hotelId}/images`);
+      const token = getAdminToken();
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('x-admin-token', token);
+      }
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        let data: any = {};
+        try { data = JSON.parse(xhr.responseText); } catch { /* ignore */ }
+        if (xhr.status >= 200 && xhr.status < 300 && data.success) {
+          resolve(data.image as HotelImage);
+        } else {
+          reject(new Error(data.message || 'Image upload failed'));
+        }
+      };
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.send(JSON.stringify({ fileData, role }));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function reorderHotelImages(hotelId: string, ids: string[]): Promise<HotelImage[]> {
+  try {
+    const res = await fetch(`/api/admin/hotels/${hotelId}/images/reorder`, {
+      method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ ids })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) return data.images || [];
+  } catch (err) {
+    console.error('Error reordering hotel images:', err);
+  }
+  return [];
+}
+
+export async function deleteHotelImage(imageId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/admin/hotels/images/${imageId}`, { method: 'DELETE', headers: getAuthHeaders() });
+    const data = await res.json();
+    return res.ok && data.success;
+  } catch (err) {
+    console.error('Error deleting hotel image:', err);
+    return false;
+  }
+}
