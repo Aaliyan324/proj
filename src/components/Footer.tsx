@@ -1,17 +1,17 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { HOTEL_INFO } from '../data/hotelData';
 
 interface FooterProps {
   onOpenBooking: () => void;
-  onOpenAdminLogin: () => void;
   selectedLanguage: string;
   onSelectLanguage: (lang: string) => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
-  onOpenBooking,
-  onOpenAdminLogin
+  onOpenBooking
 }) => {
+  const navigate = useNavigate();
   return (
     <footer className="bg-blue-950 text-gray-300 pt-16 pb-12 border-t border-blue-900/60">
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
@@ -22,16 +22,16 @@ export const Footer: React.FC<FooterProps> = ({
               <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-amber-400/60 bg-white shadow flex-shrink-0">
                 <img
                   src="/images/hotel-red-rock-logo.jpg"
-                  alt="Hotel Red Rock Logo"
+                  alt="Red Rock Hotel Logo"
                   className="w-full h-full object-cover"
                 />
               </div>
               <span className="text-xl font-black text-white tracking-wider">
-                GRAND TRAVELA
+                RED ROCK HOTEL
               </span>
             </div>
             <p className="text-xs sm:text-sm text-gray-400 leading-relaxed mb-4">
-              Providing comfortable, modern accommodations with 20 guest rooms, verified reception availability, fresh kitchen menu, and dedicated WhatsApp concierge.
+              Comfortable, modern rooms and suites managed with verified reception availability, a fresh in-house kitchen, and a dedicated WhatsApp concierge.
             </p>
           </div>
 
@@ -42,10 +42,13 @@ export const Footer: React.FC<FooterProps> = ({
             </h4>
             <ul className="space-y-2.5 text-xs sm:text-sm">
               <li>
-                <a href="/hotels" className="hover:text-amber-400 transition-colors flex items-center">
+                <button
+                  onClick={() => navigate('/rooms')}
+                  className="hover:text-amber-400 transition-colors flex items-center text-left"
+                >
                   <i className="fa fa-chevron-right text-[10px] text-amber-400 me-2"></i>
-                  Browse Hotels
-                </a>
+                  Rooms &amp; Suites
+                </button>
               </li>
               <li>
                 <a href="#home" className="hover:text-amber-400 transition-colors flex items-center">
@@ -54,9 +57,9 @@ export const Footer: React.FC<FooterProps> = ({
                 </a>
               </li>
               <li>
-                <a href="#rooms" className="hover:text-amber-400 transition-colors flex items-center">
+                <a href="#availability" className="hover:text-amber-400 transition-colors flex items-center">
                   <i className="fa fa-chevron-right text-[10px] text-amber-400 me-2"></i>
-                  20 Guest Rooms
+                  Room Availability
                 </a>
               </li>
               <li>
@@ -88,7 +91,7 @@ export const Footer: React.FC<FooterProps> = ({
             <ul className="space-y-2.5 text-xs text-gray-400">
               <li className="flex items-center space-x-2">
                 <i className="fa fa-door-open text-amber-400"></i>
-                <span>Exactly 20 Dedicated Rooms</span>
+                <span>Rooms &amp; Suites</span>
               </li>
               <li className="flex items-center space-x-2">
                 <i className="fab fa-whatsapp text-emerald-400"></i>
@@ -109,20 +112,20 @@ export const Footer: React.FC<FooterProps> = ({
             </ul>
           </div>
 
-          {/* Admin & Reception Management */}
+          {/* Contact & Book */}
           <div>
             <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-4 border-b border-blue-900 pb-2">
-              Reception &amp; Admin
+              Reservations
             </h4>
             <p className="text-xs text-gray-400 leading-relaxed mb-4">
-              Authorized hotel staff can access the central management console to update room availability, manage menu items, and update settings.
+              Ready to stay? Browse our rooms and suites, then reserve directly with reception on WhatsApp. Cash payment on arrival.
             </p>
             <button
-              onClick={onOpenAdminLogin}
-              className="w-full bg-blue-900 hover:bg-blue-800 text-amber-300 border border-amber-400/40 font-bold py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all cursor-pointer"
+              onClick={onOpenBooking}
+              className="w-full bg-amber-400 hover:bg-amber-300 text-blue-950 border border-amber-400/40 font-bold py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all cursor-pointer"
             >
-              <i className="fa fa-lock text-amber-400"></i>
-              <span>Staff / Admin Login</span>
+              <i className="fa fa-calendar-check text-blue-950"></i>
+              <span>Book a Room</span>
             </button>
           </div>
         </div>

@@ -54,7 +54,7 @@ export const ParkingSection: React.FC = () => {
             Parking <span className="text-amber-400">Available</span>
           </h2>
           <p className="text-blue-200 text-sm sm:text-base leading-relaxed">
-            Grand Travela offers secure, spacious on-site parking for all hotel guests — complimentary and accessible 24/7.
+            Red Rock Hotel offers secure, spacious on-site parking for all hotel guests — complimentary and accessible 24/7.
             Whether you arrive by car or SUV, our dedicated parking facility ensures a hassle-free stay.
           </p>
         </div>

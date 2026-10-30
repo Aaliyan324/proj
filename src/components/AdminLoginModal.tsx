@@ -52,7 +52,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             </div>
             <div>
               <h3 className="text-lg font-bold">Admin Portal Login</h3>
-              <p className="text-xs text-blue-200">Grand Travela Management &amp; Reception Only</p>
+              <p className="text-xs text-blue-200">Red Rock Hotel Management &amp; Reception Only</p>
             </div>
           </div>
           <button

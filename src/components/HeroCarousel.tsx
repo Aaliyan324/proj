@@ -17,7 +17,7 @@ interface HeroCarouselProps {
 const SLIDES = [
   {
     image: "/images/room_suite_king.jpg",
-    subtitle: "WELCOME TO GRAND TRAVELA HOTEL & RESORT",
+    subtitle: "WELCOME TO RED ROCK HOTEL",
     title: "Executive Luxury Suites & Genuine Hospitality",
     desc: "Experience premier comfort featuring luxury king bedding, full-height padded velvet wall accents, polished marble floors, and 24/7 guest service."
   },

@@ -67,10 +67,11 @@ export function detectImageType(buffer: Buffer): { contentType: string; ext: str
   return null;
 }
 
-function buildPathname(ext: string): string {
+function buildPathname(ext: string, kind: 'hotel' | 'room' | 'walkthrough' = 'hotel'): string {
   const year = new Date().getFullYear();
   const id = crypto.randomUUID();
-  return `hotel-images/${year}/${id}.${ext}`;
+  const folder = kind === 'room' ? 'room-images' : kind === 'walkthrough' ? 'walkthrough-images' : 'hotel-images';
+  return `${folder}/${year}/${id}.${ext}`;
 }
 
 /**
@@ -104,6 +105,50 @@ export async function uploadHotelImage(
 
   // The signature wins over any client-declared content type.
   const pathname = buildPathname(detected.ext);
+  const blob = await put(pathname, buffer, {
+    access: 'private',
+    contentType: detected.contentType,
+    addRandomSuffix: false,
+  });
+
+  return {
+    url: blob.url,
+    pathname: blob.pathname,
+    contentType: blob.contentType || detected.contentType,
+    size: buffer.length,
+  };
+}
+
+/**
+ * Upload a room / walkthrough image buffer to the private Blob store.
+ * Same validation posture as uploadHotelImage (size, magic bytes, private access).
+ */
+export async function uploadPrivateImage(
+  buffer: Buffer,
+  kind: 'room' | 'walkthrough'
+): Promise<BlobUploadResult> {
+  if (!isBlobConfigured()) {
+    const err = new Error(
+      'Vercel Blob is not configured. Set BLOB_READ_WRITE_TOKEN (or connect a private Blob store via Vercel).'
+    );
+    (err as any).status = 503;
+    throw err;
+  }
+
+  if (buffer.length > MAX_BYTES) {
+    const err = new Error('Image exceeds the maximum size of 10MB.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  const detected = detectImageType(buffer);
+  if (!detected) {
+    const err = new Error('Unsupported image format. Allowed: JPEG, PNG, WebP, AVIF.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  const pathname = buildPathname(detected.ext, kind);
   const blob = await put(pathname, buffer, {
     access: 'private',
     contentType: detected.contentType,

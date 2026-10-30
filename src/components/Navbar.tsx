@@ -1,26 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { HOTEL_INFO } from '../data/hotelData';
 import { fetchSettings, buildWhatsAppLink } from '../services/apiService';
 import { scrollToTarget } from '../lib/motion';
 
 interface NavbarProps {
   onOpenBooking: () => void;
-  isAdmin: boolean;
-  onOpenAdminLogin: () => void;
-  onOpenAdminDashboard: () => void;
   activeSection: string;
 }
 
-const NAV_ITEMS = [
+// Room-focused navigation for a single property (Red Rock Hotel). There is
+// intentionally no Admin entry point here — /admin is protected server-side.
+type NavItem = { label: string; id: string; href?: string; to?: string };
+
+const NAV_ITEMS: NavItem[] = [
   { label: 'Home', href: '#home', id: 'home' },
-  { label: 'Entrance', href: '#entrance', id: 'entrance' },
-  { label: 'Reception', href: '#reception', id: 'reception' },
-  { label: 'Availability', href: '#availability', id: 'availability' },
-  { label: 'Rooms', href: '#rooms', id: 'rooms' },
-  { label: 'Dining', href: '#dining', id: 'dining' },
+  { label: 'Rooms & Suites', to: '/rooms', id: 'rooms' },
   { label: 'Amenities', href: '#services', id: 'services' },
-  { label: 'Parking', href: '#parking', id: 'parking' },
   { label: 'Gallery', href: '#gallery', id: 'gallery' },
   { label: 'About', href: '#about', id: 'about' },
   { label: 'Contact', href: '#contact', id: 'contact' },
@@ -39,12 +35,10 @@ const HamburgerIcon: React.FC = () => (
 
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenBooking,
-  isAdmin,
-  onOpenAdminLogin,
-  onOpenAdminDashboard,
   activeSection,
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navVisible, setNavVisible] = useState(true);
   const [whatsappNumber, setWhatsappNumber] = useState('');
@@ -125,12 +119,25 @@ export const Navbar: React.FC<NavbarProps> = ({
     wasOpen.current = menuOpen;
   }, [menuOpen]);
 
-  const handleNavClick = (href: string) => {
+  const goToSection = (href: string) => {
+    // Hash sections only exist on the home page; from any other route, go home
+    // first and let the Home component scroll once its sections are mounted.
+    if (location.pathname !== '/') {
+      setMenuOpen(false);
+      document.body.style.overflow = '';
+      sessionStorage.setItem('scrollTo', href);
+      navigate('/');
+      return;
+    }
     setMenuOpen(false);
-    // Release the scroll lock synchronously so smooth scrolling can run.
     document.body.style.overflow = '';
-    // Lenis-aware scroll (falls back to native smooth scroll when reduced motion is on).
     requestAnimationFrame(() => scrollToTarget(href, { offset: -16 }));
+  };
+
+  const goToRoute = (to: string) => {
+    setMenuOpen(false);
+    document.body.style.overflow = '';
+    navigate(to);
   };
 
   const handleWhatsAppDirect = () => {
@@ -142,16 +149,16 @@ export const Navbar: React.FC<NavbarProps> = ({
       href="#home"
       onClick={(e) => {
         e.preventDefault();
-        handleNavClick('#home');
+        goToSection('#home');
       }}
       className="flex items-center space-x-3 group shrink-0"
     >
       <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden shadow-md transition-transform group-hover:scale-105 border-2 border-amber-400/60 bg-white flex-shrink-0">
-        <img src="/images/hotel-red-rock-logo.jpg" alt="Hotel Red Rock Logo" className="w-full h-full object-cover" />
+        <img src="/images/hotel-red-rock-logo.jpg" alt="Red Rock Hotel Logo" className="w-full h-full object-cover" />
       </div>
       <div>
         <div className={`text-lg sm:text-xl lg:text-2xl font-black tracking-wider leading-none flex items-center whitespace-nowrap ${onDark ? 'text-white' : 'text-blue-950'}`}>
-          GRAND TRAVELA
+          RED ROCK HOTEL
           <span className={`${inPanel ? 'hidden sm:inline-block' : 'hidden 2xl:inline-block'} whitespace-nowrap text-amber-400 text-xs uppercase ml-2 px-1.5 py-0.5 rounded bg-blue-900/30 border border-amber-400/40 font-semibold tracking-widest`}>
             HOTEL &amp; RESORT
           </span>
@@ -188,14 +195,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Desktop links (xl+; below that the hamburger panel holds every destination) */}
           <div className="hidden xl:flex items-center space-x-0.5 2xl:space-x-1">
             {NAV_ITEMS.map((item) => {
-              const isActive = activeSection === item.id;
+              const isActive = activeSection === item.id && location.pathname === '/';
               return (
                 <a
                   key={item.id}
-                  href={item.href}
+                  href={item.to || item.href}
                   onClick={(e) => {
                     e.preventDefault();
-                    handleNavClick(item.href);
+                    if (item.to) goToRoute(item.to);
+                    else if (item.href) goToSection(item.href);
                   }}
                   aria-current={isActive ? 'true' : undefined}
                   className={`px-2 2xl:px-3 py-1.5 text-sm font-medium transition-colors relative whitespace-nowrap group ${
@@ -217,12 +225,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Desktop CTAs */}
           <div className="hidden lg:flex items-center space-x-3 shrink-0">
             <button
-              onClick={() => navigate('/hotels')}
+              onClick={() => goToRoute('/rooms')}
               className="hidden xl:flex text-xs px-3.5 py-2 rounded-full whitespace-nowrap border border-amber-400/60 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20 transition-all items-center space-x-1.5 font-bold cursor-pointer"
-              title="Browse all hotels"
+              title="Browse Red Rock rooms & suites"
             >
-              <i className="fa fa-hotel"></i>
-              <span>Hotels</span>
+              <i className="fa fa-bed"></i>
+              <span>Rooms &amp; Suites</span>
             </button>
             <button
               onClick={handleWhatsAppDirect}
@@ -233,23 +241,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>WhatsApp Booking</span>
             </button>
             <button
-              onClick={isAdmin ? onOpenAdminDashboard : onOpenAdminLogin}
-              className={`hidden 2xl:flex text-xs px-3 py-2 rounded-full whitespace-nowrap border transition-all items-center space-x-1 font-bold cursor-pointer ${
-                isAdmin
-                  ? 'border-amber-400/80 bg-amber-400/20 text-amber-300 hover:bg-amber-400/30'
-                  : 'border-white/40 text-white hover:bg-white/10'
-              }`}
-              title={isAdmin ? 'Open Admin Management Dashboard' : 'Authorized Admin Login'}
-            >
-              <i className="fa fa-shield-alt text-amber-400"></i>
-              <span>{isAdmin ? 'Admin Dashboard' : 'Admin'}</span>
-            </button>
-            <button
               onClick={onOpenBooking}
               className="bg-amber-400 hover:bg-amber-300 text-blue-950 font-bold text-sm px-5 py-2 rounded-full whitespace-nowrap shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center cursor-pointer"
             >
-              <i className="fa fa-bed me-2"></i>
-              Check Availability
+              <i className="fa fa-calendar-check me-2"></i>
+              Book a Room
             </button>
           </div>
 
@@ -325,25 +321,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <nav aria-label="Site sections" className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="space-y-1">
-            <li>
-              <button
-                type="button"
-                onClick={() => { setMenuOpen(false); document.body.style.overflow = ''; navigate('/hotels'); }}
-                className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-base font-semibold text-amber-300 bg-blue-900/40 border border-amber-400/30 hover:bg-blue-900/60 transition-colors cursor-pointer"
-              >
-                <span><i className="fa fa-hotel me-2"></i>Hotels</span>
-                <i className="fa fa-arrow-right text-xs"></i>
-              </button>
-            </li>
             {NAV_ITEMS.map((item) => {
-              const isActive = activeSection === item.id;
+              const isActive = activeSection === item.id && location.pathname === '/';
               return (
                 <li key={item.id}>
                   <a
-                    href={item.href}
+                    href={item.to || item.href}
                     onClick={(e) => {
                       e.preventDefault();
-                      handleNavClick(item.href);
+                      if (item.to) goToRoute(item.to);
+                      else if (item.href) goToSection(item.href);
                     }}
                     aria-current={isActive ? 'true' : undefined}
                     className={`flex items-center justify-between px-4 py-3 rounded-xl text-base font-semibold transition-colors ${
@@ -373,22 +360,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={() => {
               closeMenu();
-              if (isAdmin) onOpenAdminDashboard();
-              else onOpenAdminLogin();
-            }}
-            className="w-full text-left px-4 py-2.5 text-sm text-amber-300 hover:bg-white/10 rounded-xl flex items-center space-x-2 cursor-pointer"
-          >
-            <i className="fa fa-shield-alt text-amber-400"></i>
-            <span>{isAdmin ? 'Admin Dashboard' : 'Admin Login'}</span>
-          </button>
-          <button
-            onClick={() => {
-              closeMenu();
               onOpenBooking();
             }}
             className="w-full bg-amber-400 hover:bg-amber-300 text-blue-950 font-bold text-sm py-3 rounded-full text-center cursor-pointer transition-colors"
           >
-            View 20 Rooms
+            Book a Room
           </button>
         </div>
       </aside>

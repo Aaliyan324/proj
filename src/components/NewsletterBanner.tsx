@@ -21,7 +21,7 @@ export const NewsletterBanner: React.FC = () => {
           Curated Dispatch
         </h5>
         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-4">
-          Join The Grand Travela Society
+          Join The Red Rock Society
         </h2>
         <p className="text-blue-100 text-sm sm:text-base leading-relaxed max-w-2xl mx-auto mb-8 font-light">
           Receive private invitations to seasonal champagne retreats, chef table previews, and members-only suite promotions directly in your inbox.

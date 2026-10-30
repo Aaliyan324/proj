@@ -1,5 +1,5 @@
 /**
- * Grand Travela — Express API + SPA server.
+ * Red Rock Hotel — Express API + SPA server.
  *
  * Works in three modes with one codebase:
  *  - Local dev:        `npm run dev`  (tsx server.ts, Vite middleware mode)
@@ -30,6 +30,7 @@ import {
 } from './server/db.js';
 import {
   uploadHotelImage,
+  uploadPrivateImage,
   fetchPrivateBlob,
   deleteBlobByUrl,
   isBlobConfigured,
@@ -97,6 +98,152 @@ const wrap = (fn: Handler) => (req: Request, res: Response, next: NextFunction) 
   fn(req, res).catch(next);
 };
 
+// ------------------------------------------
+// ROOM CATALOGUE + WALKTHROUGH HELPERS
+// ------------------------------------------
+
+function normalizeAmenities(input: unknown): string[] {
+  const arr = Array.isArray(input) ? input : typeof input === 'string' ? input.split(',') : [];
+  const seen = new Set<string>();
+  for (const raw of arr) {
+    const v = String(raw).trim().slice(0, 40);
+    if (v) seen.add(v);
+  }
+  return Array.from(seen).slice(0, 30);
+}
+
+// Server-side validation for the extended room fields. Returns an error
+// message or null. Prices are only ever set through these authorized routes.
+function validateRoomFields(b: any): string | null {
+  if (!b || typeof b !== 'object') return null;
+  if (b.title !== undefined && String(b.title).trim().length > 120) return 'Room name must be 120 characters or fewer.';
+  if (b.roomType !== undefined && String(b.roomType).trim().length > 80) return 'Room category must be 80 characters or fewer.';
+  if (b.pricePerNight !== undefined) {
+    const p = parseMoney(b.pricePerNight, { optional: true });
+    if (p === null || Number.isNaN(p) || p > 100000000) return 'Price per night must be a valid non-negative number.';
+  }
+  if (b.maxGuests !== undefined) {
+    const g = b.maxGuests === null || b.maxGuests === '' ? 0 : Number(b.maxGuests);
+    if (!Number.isInteger(g) || g < 0 || g > 12) return 'Maximum guests must be a whole number between 0 and 12.';
+  }
+  if (b.slug !== undefined && String(b.slug).trim().length > 80) return 'Room slug must be 80 characters or fewer.';
+  return null;
+}
+
+// Extracts the extended catalogue columns from a request body (camelCase in,
+// snake_case DB values out). Validation must run before this is used.
+function extractRoomExtFields(b: any): Record<string, unknown> {
+  const price = b.pricePerNight !== undefined && b.pricePerNight !== null && String(b.pricePerNight) !== ''
+    ? (parseMoney(b.pricePerNight, {}) || 0)
+    : 0;
+  const guests = b.maxGuests !== undefined && b.maxGuests !== null && String(b.maxGuests) !== ''
+    ? Number(b.maxGuests)
+    : 0;
+  const publishStatus = b.publishStatus && ['draft', 'published', 'maintenance', 'unavailable'].includes(String(b.publishStatus))
+    ? String(b.publishStatus)
+    : 'published';
+  return {
+    short_description: String(b.shortDescription ?? '').trim().slice(0, 300),
+    price_per_night: Number.isFinite(price) ? price : 0,
+    currency: String(b.currency || 'PKR').trim().toUpperCase().slice(0, 3) || 'PKR',
+    max_guests: Number.isInteger(guests) ? guests : 0,
+    bed_type: String(b.bedType ?? '').trim().slice(0, 80),
+    room_size: String(b.roomSize ?? '').trim().slice(0, 60),
+    amenities: normalizeAmenities(b.amenities),
+    publish_status: publishStatus,
+  };
+}
+
+function roomToDto(row: any): any {
+  if (!row) return row;
+  let amenities: string[] = [];
+  try { amenities = typeof row.amenities === 'string' ? JSON.parse(row.amenities) : (row.amenities || []); } catch { amenities = []; }
+  let gallery: string[] = [];
+  try { gallery = typeof row.gallery === 'string' ? JSON.parse(row.gallery) : (row.gallery || []); } catch { gallery = []; }
+  return {
+    ...row,
+    slug: row.slug || row.room_number,
+    price_per_night: Number(row.price_per_night || 0),
+    max_guests: Number(row.max_guests || 0),
+    display_order: Number(row.display_order || 0),
+    publish_status: row.publish_status || (Number(row.is_published) === 1 ? 'published' : 'draft'),
+    amenities,
+    gallery,
+  };
+}
+
+async function ensureUniqueRoomSlug(base: string, excludeId?: string): Promise<string> {
+  const root = base || 'room';
+  let candidate = root;
+  let n = 1;
+  while (n < 200) {
+    const q = excludeId
+      ? `SELECT id FROM rooms WHERE slug = $1 AND id <> $2`
+      : `SELECT id FROM rooms WHERE slug = $1 AND slug <> ''`;
+    const existing = await getOne<{ id: string }>(q, excludeId ? [candidate, excludeId] : [candidate]);
+    if (!existing) return candidate;
+    n += 1;
+    candidate = `${root}-${n}`;
+  }
+  return `${root}-${Date.now()}`;
+}
+
+// Keeps the legacy gallery JSON column in sync so the existing room modal
+// and availability matrix can render blob/primary images without changes.
+async function syncRoomGalleryWithPrimary(room: any, primary: string): Promise<void> {
+  let arr: string[] = [];
+  try { arr = typeof room.gallery === 'string' ? JSON.parse(room.gallery) : (Array.isArray(room.gallery) ? room.gallery : []); } catch { arr = []; }
+  if (!Array.isArray(arr)) arr = [];
+  if (!arr.includes(primary)) arr = [primary, ...arr.filter((x) => x && x !== room.image_url)];
+  await runQuery('UPDATE rooms SET gallery = $1, updated_at = $2 WHERE id = $3', [JSON.stringify(arr), new Date().toISOString(), room.id]);
+}
+
+function decodeImagePayload(fileData: unknown): Buffer | null {
+  const matches = String(fileData || '').match(/^data:image\/([A-Za-z-+]+);base64,(.+)$/);
+  if (!matches || matches.length !== 3) return null;
+  const buf = Buffer.from(matches[2], 'base64');
+  return buf.length ? buf : null;
+}
+
+// Walkthrough editor text: plain text only (the public renderer never uses
+// dangerouslySetInnerHTML), stripped of control characters and length-capped.
+function sanitizeLite(v: unknown, max = 4000): string {
+  return String(v ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, max);
+}
+
+// Shared private-blob streaming (extracted from the hotel-image route so room
+// images reuse the exact same authorization-aware delivery posture).
+async function streamPrivateBlob(res: Response, blobUrl: string, contentType: string, publicCache: boolean) {
+  let blob;
+  try {
+    blob = await fetchPrivateBlob(blobUrl);
+  } catch (err) {
+    console.error('[Blob] fetch failed:', (err as Error)?.message || err);
+    res.status(502).setHeader('Cache-Control', 'no-store').json({ success: false, message: 'Image temporarily unavailable.' });
+    return;
+  }
+  if (!blob || Number(blob.statusCode) === 404) {
+    res.status(404).setHeader('Cache-Control', 'no-store').json({ success: false, message: 'Image not found in storage.' });
+    return;
+  }
+  if (!blob.stream) {
+    res.status(Number(blob.statusCode) || 204).end();
+    return;
+  }
+  res.setHeader('Content-Type', (blob as any).blob?.contentType || contentType || 'application/octet-stream');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', publicCache ? 'public, max-age=300, stale-while-revalidate=60' : 'private, no-store');
+  const etag = (blob as any).blob?.etag;
+  if (etag) res.setHeader('ETag', etag);
+  const nodeStream = Readable.fromWeb(blob.stream as any);
+  nodeStream.on('error', (err) => {
+    console.error('[Blob] stream error:', err?.message || err);
+    if (!res.headersSent) res.status(502).end();
+    else res.destroy(err);
+  });
+  nodeStream.pipe(res);
+}
+
 // 1. Get published facility sections (Entrance, Reception, etc.)
 app.get('/api/facility', wrap(async (_req, res) => {
   const facilities = await getAll(`
@@ -119,15 +266,44 @@ app.get('/api/gallery', wrap(async (_req, res) => {
   res.json({ success: true, items });
 }));
 
-// 3. Get all published rooms (with live availability status, no pricing)
-app.get('/api/rooms', wrap(async (_req, res) => {
+// 3. Get published rooms with optional catalogue filters (category, guests,
+// price range, availability). Unpublished/draft rooms are only returned for
+// authenticated admin sessions.
+app.get('/api/rooms', wrap(async (req, res) => {
+  const {
+    category, guests, minPrice, maxPrice, availableOnly, sort = 'featured',
+  } = req.query as Record<string, string>;
+
+  const token = extractToken(req);
+  const session = token ? await validateSession(token) : { valid: false };
+  const isAdmin = Boolean(session.valid);
+
+  const where: string[] = [];
+  where.push(isAdmin ? `1 = 1` : `is_published = 1 AND publish_status = 'published'`);
+
+  const params: unknown[] = [];
+  const addParam = (v: unknown) => { params.push(v); return `$${params.length}`; };
+
+  if (category && category.trim() && category !== 'all') where.push(`room_type = ${addParam(category.trim())}`);
+  if (guests && Number.isFinite(Number(guests)) && Number(guests) > 0) where.push(`max_guests >= ${addParam(Number(guests))}`);
+  if (minPrice && Number.isFinite(Number(minPrice))) where.push(`price_per_night >= ${addParam(Number(minPrice))}`);
+  if (maxPrice && Number.isFinite(Number(maxPrice))) where.push(`price_per_night <= ${addParam(Number(maxPrice))}`);
+  if (availableOnly && ['1', 'true', 'yes'].includes(String(availableOnly))) where.push(`is_available = 1 AND status = 'Available'`);
+
+  const orderMap: Record<string, string> = {
+    price_asc: 'price_per_night ASC',
+    price_desc: 'price_per_night DESC',
+    name_asc: 'title ASC',
+    featured: 'display_order ASC, room_number ASC',
+  };
+  const orderSql = orderMap[sort] || orderMap.featured;
+
   const rooms = await getAll(`
-    SELECT id, room_number, is_available, status, image_url, room_type, title, description, display_order, is_published, gallery, created_at, updated_at
-    FROM rooms
-    WHERE is_published = 1
-    ORDER BY display_order ASC, room_number ASC
-  `);
-  res.json({ success: true, rooms });
+    SELECT * FROM rooms
+    WHERE ${where.join(' AND ')}
+    ORDER BY ${orderSql}
+  `, params);
+  res.json({ success: true, rooms: rooms.map(roomToDto) });
 }));
 
 // 4. Get public food items (No pricing)
@@ -163,7 +339,13 @@ interface AuthenticatedRequest extends Request {
 function extractToken(req: Request): string | undefined {
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ')) return authHeader.substring(7);
-  return req.headers['x-admin-token'] as string | undefined;
+  const headerToken = req.headers['x-admin-token'];
+  if (typeof headerToken === 'string' && headerToken) return headerToken;
+  // <img> tags cannot send headers, so image delivery routes also accept the
+  // session token as a query parameter (validated exactly the same way).
+  const queryToken = (req as any).query?.token;
+  if (typeof queryToken === 'string' && queryToken) return queryToken;
+  return undefined;
 }
 
 async function requireAdminAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -353,13 +535,10 @@ app.delete('/api/admin/facility/:id', requireAdminAuth, wrap(async (req, res) =>
 // ADMIN ROOM MANAGEMENT (Full Dynamic Controls & Live Availability)
 // ------------------------------------------
 
+// Admin: list all rooms (with the extended catalogue fields resolved).
 app.get('/api/admin/rooms', requireAdminAuth, wrap(async (_req, res) => {
-  const rooms = await getAll(`
-    SELECT id, room_number, is_available, status, image_url, room_type, title, description, display_order, is_published, gallery, created_at, updated_at
-    FROM rooms
-    ORDER BY display_order ASC, room_number ASC
-  `);
-  res.json({ success: true, rooms });
+  const rooms = await getAll('SELECT * FROM rooms ORDER BY display_order ASC, room_number ASC');
+  res.json({ success: true, rooms: rooms.map(roomToDto) });
 }));
 
 app.post('/api/admin/rooms', requireAdminAuth, wrap(async (req, res) => {
@@ -375,6 +554,11 @@ app.post('/api/admin/rooms', requireAdminAuth, wrap(async (req, res) => {
     res.status(400).json({ success: false, message: `A room with number "${cleanNum}" already exists.` });
     return;
   }
+  const roomErr = validateRoomFields(req.body || {});
+  if (roomErr) {
+    res.status(400).json({ success: false, message: roomErr });
+    return;
+  }
 
   const id = `room-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
   const cleanType = room_type ? String(room_type).trim() : 'Deluxe King Suite';
@@ -387,14 +571,18 @@ app.post('/api/admin/rooms', requireAdminAuth, wrap(async (req, res) => {
   const cleanPublished = is_published !== false && is_published !== 0 ? 1 : 0;
   const galleryStr = Array.isArray(gallery) ? JSON.stringify(gallery) : JSON.stringify([cleanImage]);
   const now = new Date().toISOString();
+  const ext = extractRoomExtFields(req.body || {});
+  const slug = await ensureUniqueRoomSlug(slugify(cleanTitle || cleanNum));
 
   await runQuery(`
-    INSERT INTO rooms (id, room_number, is_available, status, image_url, room_type, title, description, display_order, is_published, gallery, created_at, updated_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-  `, [id, cleanNum, isAvail, cleanStatus, cleanImage, cleanType, cleanTitle, cleanDesc, cleanOrder, cleanPublished, galleryStr, now, now]);
+    INSERT INTO rooms (id, room_number, is_available, status, image_url, room_type, title, description, display_order, is_published, gallery,
+      slug, short_description, price_per_night, currency, max_guests, bed_type, room_size, amenities, publish_status, created_at, updated_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+  `, [id, cleanNum, isAvail, cleanStatus, cleanImage, cleanType, cleanTitle, cleanDesc, cleanOrder, cleanPublished, galleryStr,
+      slug, ext.short_description, ext.price_per_night, ext.currency, ext.max_guests, ext.bed_type, ext.room_size, ext.amenities, ext.publish_status, now, now]);
 
   const created = await getOne('SELECT * FROM rooms WHERE id = $1', [id]);
-  res.json({ success: true, room: created });
+  res.json({ success: true, room: roomToDto(created) });
 }));
 
 app.put('/api/admin/rooms/:id', requireAdminAuth, wrap(async (req, res) => {
@@ -415,6 +603,11 @@ app.put('/api/admin/rooms/:id', requireAdminAuth, wrap(async (req, res) => {
       return;
     }
   }
+  const roomErr = validateRoomFields(req.body || {});
+  if (roomErr) {
+    res.status(400).json({ success: false, message: roomErr });
+    return;
+  }
 
   const cleanType = room_type !== undefined ? String(room_type).trim() : existing.room_type;
   const cleanTitle = title !== undefined ? String(title).trim() : existing.title;
@@ -429,14 +622,42 @@ app.put('/api/admin/rooms/:id', requireAdminAuth, wrap(async (req, res) => {
   const cleanGallery = gallery !== undefined ? (Array.isArray(gallery) ? JSON.stringify(gallery) : String(gallery)) : existing.gallery;
   const now = new Date().toISOString();
 
+  // Extended catalogue fields (all optional — untouched columns keep their values).
+  const ext = extractRoomExtFields(req.body || {});
+  const b = req.body || {};
+  const shortDesc = b.shortDescription !== undefined ? String(b.shortDescription).trim().slice(0, 300) : existing.short_description;
+  const price = b.pricePerNight !== undefined ? ext.price_per_night : Number(existing.price_per_night || 0);
+  const currency = b.currency !== undefined ? (String(b.currency).trim().toUpperCase().slice(0, 3) || existing.currency) : (existing.currency || 'PKR');
+  const maxGuests = b.maxGuests !== undefined ? ext.max_guests : Number(existing.max_guests || 0);
+  const bedType = b.bedType !== undefined ? String(b.bedType).trim().slice(0, 80) : existing.bed_type;
+  const roomSize = b.roomSize !== undefined ? String(b.roomSize).trim().slice(0, 60) : existing.room_size;
+  const amenities = b.amenities !== undefined ? JSON.stringify(ext.amenities) : (existing.amenities || '[]');
+  // publish_status is the listing state; keep the legacy flag in sync.
+  let publishStatus = b.publishStatus && ['draft', 'published', 'maintenance', 'unavailable'].includes(String(b.publishStatus))
+    ? String(b.publishStatus)
+    : (existing.publish_status || 'published');
+  if (b.publishStatus === undefined && b.is_published !== undefined) {
+    publishStatus = cleanPublished ? 'published' : 'draft';
+  }
+  const finalPublished = publishStatus === 'published' ? 1 : cleanPublished;
+
+  let slug = existing.slug || '';
+  if (b.slug !== undefined && String(b.slug).trim()) {
+    slug = await ensureUniqueRoomSlug(slugify(b.slug), id);
+  } else if (cleanTitle !== existing.title) {
+    slug = await ensureUniqueRoomSlug(slugify(cleanTitle), id);
+  }
+
   await runQuery(`
     UPDATE rooms
-    SET room_number = $1, room_type = $2, title = $3, description = $4, image_url = $5, status = $6, is_available = $7, display_order = $8, is_published = $9, gallery = $10, updated_at = $11
-    WHERE id = $12
-  `, [cleanNum, cleanType, cleanTitle, cleanDesc, cleanImage, cleanStatus, isAvail, cleanOrder, cleanPublished, cleanGallery, now, id]);
+    SET room_number = $1, room_type = $2, title = $3, description = $4, image_url = $5, status = $6, is_available = $7, display_order = $8, is_published = $9, gallery = $10,
+      slug = $11, short_description = $12, price_per_night = $13, currency = $14, max_guests = $15, bed_type = $16, room_size = $17, amenities = $18, publish_status = $19, updated_at = $20
+    WHERE id = $21
+  `, [cleanNum, cleanType, cleanTitle, cleanDesc, cleanImage, cleanStatus, isAvail, cleanOrder, finalPublished, cleanGallery,
+      slug, shortDesc, price, currency, maxGuests, bedType, roomSize, amenities, publishStatus, now, id]);
 
   const updated = await getOne('SELECT * FROM rooms WHERE id = $1', [id]);
-  res.json({ success: true, room: updated });
+  res.json({ success: true, room: roomToDto(updated) });
 }));
 
 // Update individual room availability status (Available, Occupied, Reserved, Maintenance)
@@ -507,6 +728,274 @@ app.delete('/api/admin/rooms/:id', requireAdminAuth, wrap(async (req, res) => {
   }
 
   res.json({ success: true, message: 'Room removed successfully.' });
+}));
+
+// ------------------------------------------
+// ROOM CATALOGUE (Red Rock Hotel — public, filterable, slug-based)
+// ------------------------------------------
+
+// Server-side facets power the room filters (distinct published values).
+app.get('/api/rooms/facets', wrap(async (_req, res) => {
+  const where = `is_published = 1 AND publish_status = 'published'`;
+  const categories = await getAll<{ room_type: string }>(
+    `SELECT DISTINCT room_type FROM rooms WHERE ${where} AND room_type <> '' ORDER BY room_type ASC`
+  );
+  const bounds = await getOne<{ min: string | number | null; max: string | number | null }>(
+    `SELECT MIN(NULLIF(price_per_night, 0)) AS min, MAX(price_per_night) AS max FROM rooms WHERE ${where}`
+  );
+  const guests = await getOne<{ mx: string | number | null }>(
+    `SELECT MAX(max_guests) AS mx FROM rooms WHERE ${where}`
+  );
+  res.json({
+    success: true,
+    categories: categories.map((c) => c.room_type),
+    priceBounds: bounds ? { min: Number(bounds.min || 0), max: Number(bounds.max || 0) } : { min: 0, max: 0 },
+    maxGuests: Number(guests?.mx || 0),
+  });
+}));
+
+// Public: single published room detail (accepts slug or legacy room number).
+app.get('/api/rooms/:slug', wrap(async (req, res) => {
+  const key = String(req.params.slug || '');
+  const room = await getOne<any>(
+    `SELECT * FROM rooms WHERE (slug = $1 OR room_number = $1) AND is_published = 1 AND publish_status = 'published'`,
+    [key]
+  );
+  if (!room) {
+    res.status(404).json({ success: false, message: 'Room not found or not published.' });
+    return;
+  }
+  const images = await getAll<{ id: string; role: string; content_type: string; display_order: number }>(
+    `SELECT id, role, content_type, display_order FROM room_images WHERE room_id = $1
+     ORDER BY (role = 'cover') DESC, display_order ASC`,
+    [room.id]
+  );
+  res.json({ success: true, room: roomToDto(room), images });
+}));
+
+// Admin: one room (any status) plus its Blob image metadata.
+app.get('/api/admin/rooms/:id', requireAdminAuth, wrap(async (req, res) => {
+  const room = await getOne<any>('SELECT * FROM rooms WHERE id = $1', [req.params.id]);
+  if (!room) {
+    res.status(404).json({ success: false, message: 'Room not found' });
+    return;
+  }
+  const images = await getAll(
+    `SELECT id, room_id, blob_pathname, content_type, size_bytes, role, display_order, created_at
+     FROM room_images WHERE room_id = $1 ORDER BY (role = 'cover') DESC, display_order ASC`,
+    [room.id]
+  );
+  res.json({ success: true, room: roomToDto(room), images });
+}));
+
+// Admin: upload a room image to the private Blob store and record metadata.
+app.post('/api/admin/rooms/:roomId/images', requireAdminAuth, wrap(async (req, res) => {
+  const room = await getOne<any>('SELECT id, gallery, image_url FROM rooms WHERE id = $1', [req.params.roomId]);
+  if (!room) {
+    res.status(404).json({ success: false, message: 'Room not found' });
+    return;
+  }
+  const decoded = decodeImagePayload(req.body?.fileData);
+  if (!decoded) {
+    res.status(400).json({ success: false, message: 'Invalid image payload. Only base64-encoded images are accepted.' });
+    return;
+  }
+
+  let upload;
+  try {
+    upload = await uploadPrivateImage(decoded, 'room');
+  } catch (err: any) {
+    res.status(err?.status || 502).json({ success: false, message: err?.message || 'Image upload failed.' });
+    return;
+  }
+
+  const imageId = `rimg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const orderRow = await getOne<{ mx: string | number | null }>('SELECT MAX(display_order) AS mx FROM room_images WHERE room_id = $1', [room.id]);
+  const nextOrder = Number(orderRow?.mx || 0) + 1;
+  const now = new Date().toISOString();
+
+  try {
+    await runQuery(`
+      INSERT INTO room_images (id, room_id, blob_url, blob_pathname, content_type, size_bytes, role, display_order, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [imageId, room.id, upload.url, upload.pathname, upload.contentType, upload.size, 'gallery', nextOrder, now]);
+  } catch (dbErr) {
+    // Roll back storage so a failed insert does not leave an orphan blob.
+    await deleteBlobByUrl(upload.url);
+    console.error('[RoomImage] DB insert failed:', dbErr);
+    res.status(500).json({ success: false, message: 'Failed to record the uploaded image.' });
+    return;
+  }
+
+  res.json({ success: true, image: { id: imageId, role: 'gallery', content_type: upload.contentType, size_bytes: upload.size, display_order: nextOrder } });
+}));
+
+// Admin: reorder gallery images and/or set the primary (cover) image.
+app.put('/api/admin/rooms/:roomId/images', requireAdminAuth, wrap(async (req, res) => {
+  const room = await getOne<any>('SELECT id, gallery FROM rooms WHERE id = $1', [req.params.roomId]);
+  if (!room) {
+    res.status(404).json({ success: false, message: 'Room not found' });
+    return;
+  }
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map((x: unknown) => String(x)) : null;
+  const primaryId = req.body?.primaryId ? String(req.body.primaryId) : undefined;
+  if (!ids && !primaryId) {
+    res.status(400).json({ success: false, message: 'Provide an ordered list of image ids and/or a primaryId.' });
+    return;
+  }
+
+  if (ids) {
+    for (let i = 0; i < ids.length; i++) {
+      await runQuery(`UPDATE room_images SET display_order = $1 WHERE room_id = $2 AND id = $3 AND role <> 'cover'`, [i + 1, room.id, ids[i]]);
+    }
+  }
+  if (primaryId) {
+    const target = await getOne<{ id: string }>(`SELECT id FROM room_images WHERE id = $1 AND room_id = $2`, [primaryId, room.id]);
+    if (!target) {
+      res.status(400).json({ success: false, message: 'Primary image does not belong to this room.' });
+      return;
+    }
+    await runQuery(`UPDATE room_images SET role = 'gallery' WHERE room_id = $1 AND role = 'cover'`, [room.id]);
+    await runQuery(`UPDATE room_images SET role = 'cover' WHERE id = $1`, [primaryId]);
+    // Keep the legacy single-image column in sync for the sections that used it.
+    await runQuery(`UPDATE rooms SET image_url = $1, updated_at = $2 WHERE id = $3`, [`/api/room-image/${primaryId}`, new Date().toISOString(), room.id]);
+    await syncRoomGalleryWithPrimary(room, `/api/room-image/${primaryId}`);
+  }
+
+  const images = await getAll(
+    `SELECT id, role, content_type, size_bytes, display_order FROM room_images WHERE room_id = $1 ORDER BY (role = 'cover') DESC, display_order ASC`,
+    [room.id]
+  );
+  res.json({ success: true, images });
+}));
+
+// Admin: delete one room image (blob removed only when no record still references it).
+app.delete('/api/admin/room-images/:imageId', requireAdminAuth, wrap(async (req, res) => {
+  const image = await getOne<any>('SELECT id, room_id, blob_url FROM room_images WHERE id = $1', [req.params.imageId]);
+  if (!image) {
+    res.status(404).json({ success: false, message: 'Image not found' });
+    return;
+  }
+  await runQuery('DELETE FROM room_images WHERE id = $1', [image.id]);
+  const remaining = await getOne<{ count: string | number }>('SELECT COUNT(*)::int AS count FROM room_images WHERE blob_url = $1', [image.blob_url]);
+  if (Number(remaining?.count || 0) === 0) {
+    await deleteBlobByUrl(image.blob_url);
+  }
+  res.json({ success: true, message: 'Image removed.' });
+}));
+
+// Authorization-aware private room image delivery.
+// Images of published rooms are public; anything else requires an admin session.
+// Bundled catalogue thumbnails (/images/rooms/*) are repo assets and always public.
+app.get('/api/room-image/:imageId', wrap(async (req, res) => {
+  const image = await getOne<any>(
+    `SELECT ri.blob_url, ri.blob_pathname, ri.content_type, ri.room_id, r.publish_status, r.is_published
+     FROM room_images ri LEFT JOIN rooms r ON r.id = ri.room_id
+     WHERE ri.id = $1`,
+    [req.params.imageId]
+  );
+  if (!image) {
+    res.status(404).setHeader('Cache-Control', 'no-store').json({ success: false, message: 'Image not found' });
+    return;
+  }
+
+  const isBundled = !image.room_id && String(image.blob_pathname || '').startsWith('/images/rooms/');
+  let isPublic = isBundled || (image.publish_status === 'published' && Number(image.is_published) === 1);
+  // Walkthrough images are stored without a room. They become public only once
+  // a published walkthrough actually references them; otherwise admin-only.
+  if (!isPublic && !image.room_id) {
+    const used = await getOne<{ x: number }>(
+      `SELECT 1 AS x FROM walkthrough_sections ws
+       JOIN walkthroughs w ON w.id = ws.walkthrough_id
+       WHERE ws.image_ref = $1 AND w.status = 'published' LIMIT 1`,
+      [`/api/room-image/${req.params.imageId}`]
+    );
+    if (used) isPublic = true;
+  }
+  if (!isPublic) {
+    const token = extractToken(req);
+    const session = token ? await validateSession(token) : { valid: false };
+    if (!session.valid) {
+      res.status(403).setHeader('Cache-Control', 'no-store').json({ success: false, message: 'Not authorized to view this image.' });
+      return;
+    }
+  }
+
+  if (isBundled) {
+    // Local repo asset: stream straight from the bundled images folder.
+    const rel = String(image.blob_pathname).replace('/images/rooms/', '');
+    const filePath = path.join(imagesRoot, 'rooms', path.basename(rel));
+    if (!fs.existsSync(filePath)) {
+      res.status(404).setHeader('Cache-Control', 'no-store').json({ success: false, message: 'Bundled image missing.' });
+      return;
+    }
+    res.setHeader('Content-Type', image.content_type || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    fs.createReadStream(filePath).pipe(res);
+    return;
+  }
+
+  await streamPrivateBlob(res, image.blob_url, image.content_type, isPublic);
+}));
+
+// Safe room-catalogue setup: creates the 20 rooms backed by the bundled
+// Luxury_Hotel_Room_Thumbnails assets. Insert-only and ON CONFLICT DO NOTHING:
+// existing rooms (records, prices, availability) are never modified.
+app.post('/api/admin/rooms/setup-catalog', requireAdminAuth, wrap(async (req, res) => {
+  const total = await getOne<{ count: string | number }>('SELECT COUNT(*)::int AS count FROM rooms');
+  if (Number(total?.count || 0) > 0) {
+    res.json({ success: true, created: 0, skipped: Number(total?.count || 0), message: 'Rooms already exist — nothing was inserted.' });
+    return;
+  }
+  const now = new Date().toISOString();
+  let created = 0;
+  for (let i = 1; i <= 20; i++) {
+    const num = String(i).padStart(2, '0');
+    const id = `room-catalog-${num}`;
+    const result = await runQuery(`
+      INSERT INTO rooms (id, room_number, slug, title, room_type, description, short_description, image_url, gallery,
+        is_available, status, display_order, is_published, publish_status, price_per_night, currency, max_guests,
+        bed_type, room_size, amenities, created_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,'Maintenance',$10,0,'draft',0,'PKR',0,'','','[]',$11,$11)
+      ON CONFLICT DO NOTHING
+    `, [
+      id, `Room ${num}`, `room-${num}`,
+      `Room ${num}`, '',
+      'Details for this room have not been configured yet. The administrator can complete the category, price, capacity and description before publishing.',
+      '', `/images/rooms/hotel_room_${num}.jpg`, JSON.stringify([`/images/rooms/hotel_room_${num}.jpg`]),
+      i, now,
+    ]);
+    created += result.rowCount;
+  }
+  res.json({ success: true, created, message: created ? `Created ${created} draft rooms from the bundled thumbnails.` : 'Nothing inserted.' });
+}));
+
+// Associate a bundled thumbnail with an existing room WITHOUT touching prices,
+// availability or publication. Only ever fills a still-placeholder image.
+app.post('/api/admin/rooms/:roomId/attach-bundled-image', requireAdminAuth, wrap(async (req, res) => {
+  const num = String(req.body?.imageNum || '').padStart(2, '0');
+  if (!/^\d{2}$/.test(num)) {
+    res.status(400).json({ success: false, message: 'imageNum must be between 01 and 20.' });
+    return;
+  }
+  const room = await getOne<any>('SELECT id, image_url, gallery FROM rooms WHERE id = $1', [req.params.roomId]);
+  if (!room) {
+    res.status(404).json({ success: false, message: 'Room not found' });
+    return;
+  }
+  const filePath = path.join(imagesRoot, 'rooms', `hotel_room_${num}.jpg`);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ success: false, message: `Bundled thumbnail hotel_room_${num}.jpg is missing.` });
+    return;
+  }
+  const nextImage = `/images/rooms/hotel_room_${num}.jpg`;
+  const wasPlaceholder = !room.image_url || room.image_url === '/images/room_suite_king.jpg';
+  if (wasPlaceholder) {
+    await runQuery('UPDATE rooms SET image_url = $1, updated_at = $2 WHERE id = $3', [nextImage, new Date().toISOString(), room.id]);
+  }
+  await syncRoomGalleryWithPrimary(room, nextImage);
+  const updated = await getOne('SELECT * FROM rooms WHERE id = $1', [room.id]);
+  res.json({ success: true, room: roomToDto(updated), image: nextImage });
 }));
 
 // ------------------------------------------
@@ -1290,30 +1779,247 @@ app.get('/api/hotel-image/:imageId', wrap(async (req, res) => {
     return;
   }
 
-  if (!blob || Number(blob.statusCode) === 404) {
-    res.status(404).setHeader('Cache-Control', 'no-store').json({ success: false, message: 'Image not found in storage.' });
+  await streamPrivateBlob(res, image.blob_url, image.content_type || '', image.status === 'published');
+}));
+
+// ------------------------------------------
+// WEBSITE WALKTHROUGH (admin-written, Neon-backed)
+// ------------------------------------------
+
+// Public: the latest PUBLISHED walkthrough only. Drafts never leave the admin
+// API; when nothing is published the frontend hides the section entirely.
+app.get('/api/walkthrough', wrap(async (_req, res) => {
+  const walk = await getOne<any>(`SELECT * FROM walkthroughs WHERE status = 'published' ORDER BY updated_at DESC LIMIT 1`);
+  if (!walk) {
+    res.json({ success: true, walkthrough: null, sections: [] });
     return;
   }
-  if (!blob.stream) {
-    res.status(Number(blob.statusCode) || 204).end();
+  const sections = await getAll(
+    'SELECT id, heading, body, image_ref, caption, video_url, display_order FROM walkthrough_sections WHERE walkthrough_id = $1 ORDER BY display_order ASC',
+    [walk.id]
+  );
+  res.json({ success: true, walkthrough: walk, sections });
+}));
+
+app.get('/api/admin/walkthroughs', requireAdminAuth, wrap(async (_req, res) => {
+  const walks = await getAll(
+    `SELECT w.*, (SELECT COUNT(*)::int FROM walkthrough_sections ws WHERE ws.walkthrough_id = w.id) AS section_count
+     FROM walkthroughs w ORDER BY w.updated_at DESC`
+  );
+  res.json({ success: true, walkthroughs: walks });
+}));
+
+app.get('/api/admin/walkthroughs/:id', requireAdminAuth, wrap(async (req, res) => {
+  const walk = await getOne('SELECT * FROM walkthroughs WHERE id = $1', [req.params.id]);
+  if (!walk) {
+    res.status(404).json({ success: false, message: 'Walkthrough not found' });
     return;
   }
+  const sections = await getAll(
+    'SELECT * FROM walkthrough_sections WHERE walkthrough_id = $1 ORDER BY display_order ASC',
+    [walk.id]
+  );
+  res.json({ success: true, walkthrough: walk, sections });
+}));
 
-  const contentType = (blob as any).blob?.contentType || image.content_type || 'application/octet-stream';
-  res.setHeader('Content-Type', contentType);
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Cache-Control', image.status === 'published' ? 'public, max-age=300, stale-while-revalidate=60' : 'private, no-store');
-  const etag = (blob as any).blob?.etag;
-  if (etag) res.setHeader('ETag', etag);
+app.post('/api/admin/walkthroughs', requireAdminAuth, wrap(async (req, res) => {
+  const title = sanitizeLite(req.body?.title, 120);
+  if (!title) {
+    res.status(400).json({ success: false, message: 'Walkthrough title is required.' });
+    return;
+  }
+  const id = `walk-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const now = new Date().toISOString();
+  await runQuery(
+    `INSERT INTO walkthroughs (id, title, intro, status, created_at, updated_at) VALUES ($1, $2, $3, 'draft', $4, $5)`,
+    [id, title, sanitizeLite(req.body?.intro, 1000), now, now]
+  );
+  const walk = await getOne('SELECT * FROM walkthroughs WHERE id = $1', [id]);
+  res.json({ success: true, walkthrough: walk });
+}));
 
-  // Convert the WHATWG ReadableStream to a Node stream and pipe to the response.
-  const nodeStream = Readable.fromWeb(blob.stream as any);
-  nodeStream.on('error', (err) => {
-    console.error('[HotelImage] stream error:', err?.message || err);
-    if (!res.headersSent) res.status(502).end();
-    else res.destroy(err);
-  });
-  nodeStream.pipe(res);
+app.put('/api/admin/walkthroughs/:id', requireAdminAuth, wrap(async (req, res) => {
+  const existing = await getOne<any>('SELECT * FROM walkthroughs WHERE id = $1', [req.params.id]);
+  if (!existing) {
+    res.status(404).json({ success: false, message: 'Walkthrough not found' });
+    return;
+  }
+  const title = req.body?.title !== undefined ? sanitizeLite(req.body.title, 120) : existing.title;
+  if (!title) {
+    res.status(400).json({ success: false, message: 'Walkthrough title is required.' });
+    return;
+  }
+  const intro = req.body?.intro !== undefined ? sanitizeLite(req.body.intro, 1000) : existing.intro;
+  await runQuery('UPDATE walkthroughs SET title = $1, intro = $2, updated_at = $3 WHERE id = $4', [title, intro, new Date().toISOString(), existing.id]);
+  const walk = await getOne('SELECT * FROM walkthroughs WHERE id = $1', [existing.id]);
+  res.json({ success: true, walkthrough: walk });
+}));
+
+// Publish / unpublish. Publishing requires at least one section with a heading,
+// so an empty walkthrough can never go live.
+app.post('/api/admin/walkthroughs/:id/publish', requireAdminAuth, wrap(async (req, res) => {
+  const walk = await getOne<any>('SELECT * FROM walkthroughs WHERE id = $1', [req.params.id]);
+  if (!walk) {
+    res.status(404).json({ success: false, message: 'Walkthrough not found' });
+    return;
+  }
+  const sections = await getOne<{ count: string | number }>(
+    `SELECT COUNT(*)::int AS count FROM walkthrough_sections WHERE walkthrough_id = $1 AND heading <> ''`,
+    [walk.id]
+  );
+  if (Number(sections?.count || 0) === 0) {
+    res.status(400).json({ success: false, message: 'Add at least one section with a heading before publishing.' });
+    return;
+  }
+  // Only one walkthrough may be live at a time.
+  await runQuery(`UPDATE walkthroughs SET status = 'draft' WHERE status = 'published' AND id <> $1`, [walk.id]);
+  await runQuery(`UPDATE walkthroughs SET status = 'published', updated_at = $1 WHERE id = $2`, [new Date().toISOString(), walk.id]);
+  const updated = await getOne('SELECT * FROM walkthroughs WHERE id = $1', [walk.id]);
+  res.json({ success: true, walkthrough: updated });
+}));
+
+app.post('/api/admin/walkthroughs/:id/unpublish', requireAdminAuth, wrap(async (req, res) => {
+  const walk = await getOne<any>('SELECT id FROM walkthroughs WHERE id = $1', [req.params.id]);
+  if (!walk) {
+    res.status(404).json({ success: false, message: 'Walkthrough not found' });
+    return;
+  }
+  await runQuery(`UPDATE walkthroughs SET status = 'draft', updated_at = $1 WHERE id = $2`, [new Date().toISOString(), walk.id]);
+  const updated = await getOne('SELECT * FROM walkthroughs WHERE id = $1', [walk.id]);
+  res.json({ success: true, walkthrough: updated });
+}));
+
+app.delete('/api/admin/walkthroughs/:id', requireAdminAuth, wrap(async (req, res) => {
+  const result = await runQuery('DELETE FROM walkthroughs WHERE id = $1', [req.params.id]);
+  if (result.rowCount === 0) {
+    res.status(404).json({ success: false, message: 'Walkthrough not found' });
+    return;
+  }
+  res.json({ success: true, message: 'Walkthrough deleted.' });
+}));
+
+// Sections: create / update / delete / reorder.
+app.post('/api/admin/walkthroughs/:id/sections', requireAdminAuth, wrap(async (req, res) => {
+  const walk = await getOne<any>('SELECT id FROM walkthroughs WHERE id = $1', [req.params.id]);
+  if (!walk) {
+    res.status(404).json({ success: false, message: 'Walkthrough not found' });
+    return;
+  }
+  const heading = sanitizeLite(req.body?.heading, 160);
+  if (!heading) {
+    res.status(400).json({ success: false, message: 'Section heading is required.' });
+    return;
+  }
+  const orderRow = await getOne<{ mx: string | number | null }>('SELECT MAX(display_order) AS mx FROM walkthrough_sections WHERE walkthrough_id = $1', [walk.id]);
+  const id = `wsec-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const now = new Date().toISOString();
+  await runQuery(
+    `INSERT INTO walkthrough_sections (id, walkthrough_id, heading, body, image_ref, caption, video_url, display_order, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9)`,
+    [id, walk.id, heading, sanitizeLite(req.body?.body), sanitizeLite(req.body?.imageRef, 500), sanitizeLite(req.body?.caption, 300), sanitizeLite(req.body?.videoUrl, 300), Number(orderRow?.mx || 0) + 1, now]
+  );
+  const section = await getOne('SELECT * FROM walkthrough_sections WHERE id = $1', [id]);
+  res.json({ success: true, section });
+}));
+
+app.put('/api/admin/sections/:sectionId', requireAdminAuth, wrap(async (req, res) => {
+  const existing = await getOne<any>('SELECT * FROM walkthrough_sections WHERE id = $1', [req.params.sectionId]);
+  if (!existing) {
+    res.status(404).json({ success: false, message: 'Section not found' });
+    return;
+  }
+  const b = req.body || {};
+  const heading = b.heading !== undefined ? sanitizeLite(b.heading, 160) : existing.heading;
+  if (!heading) {
+    res.status(400).json({ success: false, message: 'Section heading is required.' });
+    return;
+  }
+  // Only http(s) video links are accepted (no javascript:/data: URIs).
+  let videoUrl = existing.video_url;
+  if (b.videoUrl !== undefined) {
+    const v = sanitizeLite(b.videoUrl, 300);
+    videoUrl = v === '' || /^https?:\/\//i.test(v) ? v : existing.video_url;
+    if (v && videoUrl === existing.video_url && existing.video_url !== v) {
+      res.status(400).json({ success: false, message: 'Video links must start with http:// or https://.' });
+      return;
+    }
+  }
+  await runQuery(
+    'UPDATE walkthrough_sections SET heading = $1, body = $2, image_ref = $3, caption = $4, video_url = $5, display_order = $6, updated_at = $7 WHERE id = $8',
+    [
+      heading,
+      b.body !== undefined ? sanitizeLite(b.body) : existing.body,
+      b.imageRef !== undefined ? sanitizeLite(b.imageRef, 500) : existing.image_ref,
+      b.caption !== undefined ? sanitizeLite(b.caption, 300) : existing.caption,
+      videoUrl,
+      b.displayOrder !== undefined ? Number(b.displayOrder) || 1 : existing.display_order,
+      new Date().toISOString(),
+      existing.id,
+    ]
+  );
+  const section = await getOne('SELECT * FROM walkthrough_sections WHERE id = $1', [existing.id]);
+  res.json({ success: true, section });
+}));
+
+app.delete('/api/admin/sections/:sectionId', requireAdminAuth, wrap(async (req, res) => {
+  const result = await runQuery('DELETE FROM walkthrough_sections WHERE id = $1', [req.params.sectionId]);
+  if (result.rowCount === 0) {
+    res.status(404).json({ success: false, message: 'Section not found' });
+    return;
+  }
+  res.json({ success: true, message: 'Section removed.' });
+}));
+
+app.put('/api/admin/walkthroughs/:id/sections/reorder', requireAdminAuth, wrap(async (req, res) => {
+  const walk = await getOne<any>('SELECT id FROM walkthroughs WHERE id = $1', [req.params.id]);
+  if (!walk) {
+    res.status(404).json({ success: false, message: 'Walkthrough not found' });
+    return;
+  }
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map((x: unknown) => String(x)) : [];
+  if (!ids.length) {
+    res.status(400).json({ success: false, message: 'An ordered list of section ids is required.' });
+    return;
+  }
+  for (let i = 0; i < ids.length; i++) {
+    await runQuery('UPDATE walkthrough_sections SET display_order = $1 WHERE walkthrough_id = $2 AND id = $3', [i + 1, walk.id, ids[i]]);
+  }
+  const sections = await getAll(
+    'SELECT * FROM walkthrough_sections WHERE walkthrough_id = $1 ORDER BY display_order ASC',
+    [walk.id]
+  );
+  res.json({ success: true, sections });
+}));
+
+// Upload a walkthrough image into the private Blob store. The browser receives
+// only the delivery-route id, never the raw blob URL.
+app.post('/api/admin/walkthrough-images', requireAdminAuth, wrap(async (req, res) => {
+  const decoded = decodeImagePayload(req.body?.fileData);
+  if (!decoded) {
+    res.status(400).json({ success: false, message: 'Invalid image payload. Only base64-encoded images are accepted.' });
+    return;
+  }
+  const imageId = `wimg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  let upload;
+  try {
+    upload = await uploadPrivateImage(decoded, 'walkthrough');
+  } catch (err: any) {
+    res.status(err?.status || 502).json({ success: false, message: err?.message || 'Image upload failed.' });
+    return;
+  }
+  try {
+    await runQuery(
+      `INSERT INTO room_images (id, room_id, blob_url, blob_pathname, content_type, size_bytes, role, display_order, created_at)
+       VALUES ($1, NULL, $2, $3, $4, $5, 'gallery', 1, $6)`,
+      [imageId, upload.url, upload.pathname, upload.contentType, upload.size, new Date().toISOString()]
+    );
+  } catch (dbErr) {
+    await deleteBlobByUrl(upload.url);
+    console.error('[WalkthroughImage] DB insert failed:', dbErr);
+    res.status(500).json({ success: false, message: 'Failed to record the uploaded image.' });
+    return;
+  }
+  res.json({ success: true, image: { id: imageId, ref: `/api/room-image/${imageId}` } });
 }));
 
 // ------------------------------------------
@@ -1337,7 +2043,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Grand Travela] Server running at http://0.0.0.0:${PORT}`);
+    console.log(`[Red Rock Hotel] Server running at http://0.0.0.0:${PORT}`);
   });
 }
 

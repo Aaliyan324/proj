@@ -1,4 +1,4 @@
-# Grand Travela Hotel & Resort
+# Red Rock Hotel
 
 React + Vite + Tailwind front end with a small Express server (items API, image uploads, admin login).
 

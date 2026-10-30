@@ -38,12 +38,13 @@ export interface GalleryItem {
 }
 
 export const HOTEL_INFO = {
-  name: "Grand Travela Hotel & Resort",
-  shortName: "Grand Travela",
-  brandSubtitle: "Luxury Hotel & Suites • Premier Hospitality",
-  address: "Grand Travela Hotel, Main Boulevard",
+  name: "Red Rock Hotel",
+  shortName: "Red Rock",
+  brandSubtitle: "Rooms & Suites • Comfort & Hospitality",
+  address: "Red Rock Hotel",
   phone: "Contact via WhatsApp",
-  email: "info@grandtravela.com",
+  // TODO(before launch): replace with the hotel's real, verified email address.
+  email: "info@redrockhotel.example",
   checkInTime: "2:00 PM",
   checkOutTime: "12:00 PM",
   paymentPolicy: "Cash Payment upon arrival at hotel reception. Booking confirmed via WhatsApp."
@@ -109,7 +110,7 @@ export const RESORT_AMENITIES: AmenityService[] = [
     title: "On-Site Parking Available",
     iconClass: "fa-parking",
     shortDesc: "Secure, spacious on-site vehicle parking for all hotel guests.",
-    fullDesc: "Grand Travela provides dedicated on-site parking for all guests. Our secure parking area accommodates cars and larger vehicles with easy access to the hotel entrance. Parking is complimentary for all staying guests.",
+    fullDesc: "Red Rock Hotel provides dedicated on-site parking for all guests. Our secure parking area accommodates cars and larger vehicles with easy access to the hotel entrance. Parking is complimentary for all staying guests.",
     schedule: "24/7 Available",
     image: "/images/multi-storey-car-park-1271919_1280.jpg"
   }

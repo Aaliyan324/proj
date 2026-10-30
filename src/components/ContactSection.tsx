@@ -28,7 +28,7 @@ export const ContactSection: React.FC = () => {
     setLoading(true);
 
     // Prepare WhatsApp message directly from form for immediate response
-    const msg = `Hello Grand Travela Hotel,\n\nInquiry from: ${formData.name}\nPhone: ${formData.phone}\nSubject: ${formData.subject}\nMessage: ${formData.message}`;
+    const msg = `Hello Red Rock Hotel,\n\nInquiry from: ${formData.name}\nPhone: ${formData.phone}\nSubject: ${formData.subject}\nMessage: ${formData.message}`;
     const cleanNumber = (whatsappNumber || '').replace(/[^0-9]/g, '');
     const waLink = cleanNumber 
       ? `https://wa.me/${cleanNumber}?text=${encodeURIComponent(msg)}`

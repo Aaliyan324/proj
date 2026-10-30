@@ -38,7 +38,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ onExploreRooms }) =>
               >
                 <img
                   src="/images/room_suite_king.jpg"
-                  alt="Grand Travela Executive Bedroom Suite"
+                  alt="Red Rock Executive Bedroom Suite"
                   className="w-full h-[450px] object-cover rounded-xl transition-transform duration-700 hover:scale-105"
                   onError={(e: any) => { e.target.src = '/images/room_suite_double.jpg'; }}
                 />
@@ -59,7 +59,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ onExploreRooms }) =>
           <div className="lg:col-span-7">
             <div className="mb-3">
               <h5 className="section-title text-sm lg:text-base font-bold text-hotel-primary uppercase tracking-widest">
-                About Grand Travela
+                About Red Rock
               </h5>
             </div>
 
@@ -101,7 +101,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ onExploreRooms }) =>
             </div>
 
             <p className="text-gray-600 text-sm leading-relaxed mb-6">
-              Grand Travela Hotel &amp; Resort offers a welcoming haven for travelers, business guests, and families. With 20 modern rooms managed with precision through our digital reception dashboard, we guarantee verified room availability and dedicated service around the clock.
+              Red Rock Hotel offers a welcoming haven for travelers, business guests, and families. With 20 modern rooms managed with precision through our digital reception dashboard, we guarantee verified room availability and dedicated service around the clock.
             </p>
 
             {/* Highlights Grid */}

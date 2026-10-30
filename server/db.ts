@@ -1,5 +1,5 @@
 /**
- * Data layer for Grand Travela — Neon PostgreSQL (serverless).
+ * Data layer for Red Rock Hotel — Neon PostgreSQL (serverless).
  *
  * Replaces the previous node:sqlite (data/hotel.db) integration so the app can
  * run on Vercel's serverless runtime, where a local file DB cannot persist.
@@ -215,6 +215,55 @@ const SCHEMA_STATEMENTS: string[] = [
      display_order INTEGER NOT NULL DEFAULT 1,
      created_at TEXT NOT NULL
    )`,
+  // ------------------------------------------
+  // Room-focused catalogue (Red Rock Hotel).
+  // All changes below are ADDITIVE: existing columns and rows are never
+  // dropped or rewritten, so production room/reservation data stays intact.
+  // ------------------------------------------
+  `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS slug TEXT UNIQUE`,
+  `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS short_description TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS price_per_night NUMERIC NOT NULL DEFAULT 0`,
+  `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'PKR'`,
+  `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS max_guests INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS bed_type TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS room_size TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS amenities TEXT NOT NULL DEFAULT '[]'`,
+  `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS publish_status TEXT NOT NULL DEFAULT 'published'`,
+  // Private-Blob image metadata for rooms (binary stays in Vercel Blob).
+  // room_id is NOT a FK: deleting a room must never cascade-delete storage
+  // rows that may still be referenced; the room delete route checks usage.
+  `CREATE TABLE IF NOT EXISTS room_images (
+     id TEXT PRIMARY KEY,
+     room_id TEXT NULL,
+     blob_url TEXT NOT NULL,
+     blob_pathname TEXT NOT NULL,
+     content_type TEXT NOT NULL,
+     size_bytes INTEGER NOT NULL DEFAULT 0,
+     role TEXT NOT NULL DEFAULT 'gallery',
+     display_order INTEGER NOT NULL DEFAULT 1,
+     created_at TEXT NOT NULL
+   )`,
+  // Admin-written website walkthrough (replaces the old hardcoded sections).
+  `CREATE TABLE IF NOT EXISTS walkthroughs (
+     id TEXT PRIMARY KEY,
+     title TEXT NOT NULL,
+     intro TEXT NOT NULL DEFAULT '',
+     status TEXT NOT NULL DEFAULT 'draft',
+     created_at TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   )`,
+  `CREATE TABLE IF NOT EXISTS walkthrough_sections (
+     id TEXT PRIMARY KEY,
+     walkthrough_id TEXT NOT NULL REFERENCES walkthroughs(id) ON DELETE CASCADE,
+     heading TEXT NOT NULL DEFAULT '',
+     body TEXT NOT NULL DEFAULT '',
+     image_ref TEXT NOT NULL DEFAULT '',
+     caption TEXT NOT NULL DEFAULT '',
+     video_url TEXT NOT NULL DEFAULT '',
+     display_order INTEGER NOT NULL DEFAULT 1,
+     created_at TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   )`,
   // Indexes for the hot paths
   `CREATE INDEX IF NOT EXISTS idx_rooms_published_order ON rooms (is_published, display_order)`,
   `CREATE INDEX IF NOT EXISTS idx_gallery_published_order ON gallery_items (is_published, display_order)`,
@@ -224,6 +273,10 @@ const SCHEMA_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_hotels_slug ON hotels (slug)`,
   `CREATE INDEX IF NOT EXISTS idx_hotels_city_price ON hotels (city, price_per_night)`,
   `CREATE INDEX IF NOT EXISTS idx_hotel_images_hotel ON hotel_images (hotel_id, role, display_order)`,
+  `CREATE INDEX IF NOT EXISTS idx_room_images_room ON room_images (room_id, role, display_order)`,
+  `CREATE INDEX IF NOT EXISTS idx_rooms_publish_status ON rooms (publish_status, is_published, display_order)`,
+  `CREATE INDEX IF NOT EXISTS idx_walkthrough_status ON walkthroughs (status, updated_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_walkthrough_sections_order ON walkthrough_sections (walkthrough_id, display_order)`,
 ];
 
 /**
