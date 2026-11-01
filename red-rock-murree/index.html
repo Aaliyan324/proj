@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Red Rock Murree</title>
+    <meta name="description" content="Red Rock Murree: a 42-room hotel in Murree, Pakistan. See live room availability and send a booking inquiry on WhatsApp. Payment is in cash at the hotel." />
+    <meta name="theme-color" content="#16211d" />
+    <meta property="og:title" content="Red Rock Murree" />
+    <meta property="og:description" content="A 42-room hotel in Murree. Live room availability, WhatsApp booking inquiries, cash payment at the hotel." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/jpeg" href="/images/hotel-red-rock-logo.jpg" />
+    <link rel="apple-touch-icon" href="/images/hotel-red-rock-logo.jpg" />
+    <meta property="og:image" content="/images/hotel-red-rock-logo.jpg" />
+
+    <!-- Hero image is the largest paint: fetch it before the JS bundle finishes -->
+    <link rel="preload" as="image" href="/images/murree.webp" fetchpriority="high" />
+
+    <!-- Fonts: Instrument Serif (display) + Hanken Grotesk (text). Jost/Roboto remain only for legacy sections until Stage 4. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@300;400;500;600&family=Jost:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Legacy icon fonts: still used by sections not yet redesigned (removed in Stage 4) -->
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
