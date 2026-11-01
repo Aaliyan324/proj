@@ -277,6 +277,34 @@ const SCHEMA_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_rooms_publish_status ON rooms (publish_status, is_published, display_order)`,
   `CREATE INDEX IF NOT EXISTS idx_walkthrough_status ON walkthroughs (status, updated_at)`,
   `CREATE INDEX IF NOT EXISTS idx_walkthrough_sections_order ON walkthrough_sections (walkthrough_id, display_order)`,
+  // ------------------------------------------
+  // Room-category availability summary (redesigned "Which Rooms Are Free?" scene).
+  // Additive: a new table only; existing rows/tables are never touched. Totals are
+  // the owner-confirmed room distribution; the four status counts stay
+  // unconfirmed (dashes on the public site) until the admin saves real numbers.
+  // ------------------------------------------
+  `CREATE TABLE IF NOT EXISTS room_category_stats (
+     key TEXT PRIMARY KEY,
+     name TEXT NOT NULL,
+     total INTEGER NOT NULL,
+     available INTEGER NOT NULL DEFAULT 0,
+     occupied INTEGER NOT NULL DEFAULT 0,
+     reserved INTEGER NOT NULL DEFAULT 0,
+     maintenance INTEGER NOT NULL DEFAULT 0,
+     confirmed INTEGER NOT NULL DEFAULT 0,
+     display_order INTEGER NOT NULL DEFAULT 0,
+     updated_at TEXT NOT NULL
+   )`,
+  // Seed the four categories once; later runs only keep name/total in sync (never the counts).
+  `INSERT INTO room_category_stats (key, name, total, available, occupied, reserved, maintenance, confirmed, display_order, updated_at) VALUES
+     ('two-seater',   'Two-Seater Rooms',   20, 20, 0, 0, 0, 0, 0, CURRENT_TIMESTAMP::text),
+     ('three-seater', 'Three-Seater Rooms',  5,  5, 0, 0, 0, 0, 1, CURRENT_TIMESTAMP::text),
+     ('four-seater',  'Four-Seater Rooms',  12, 12, 0, 0, 0, 0, 2, CURRENT_TIMESTAMP::text),
+     ('suite',        'Suite (2 in 1)',      5,  5, 0, 0, 0, 0, 3, CURRENT_TIMESTAMP::text)
+   ON CONFLICT (key) DO UPDATE SET name = EXCLUDED.name, total = EXCLUDED.total`,
+  // Safety net: a row whose four counts no longer add up to its total is reset to unconfirmed.
+  `UPDATE room_category_stats SET available = total, occupied = 0, reserved = 0, maintenance = 0, confirmed = 0
+   WHERE available + occupied + reserved + maintenance <> total`,
 ];
 
 /**

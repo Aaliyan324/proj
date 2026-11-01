@@ -140,43 +140,14 @@ export const RoomDetailModal: React.FC<RoomDetailModalProps> = ({ room, onClose 
             </div>
           </div>
 
-          {/* Room Description */}
+          {/* Room details: only owner-supplied text is shown. Verified features are added via the admin dashboard. */}
           <div>
-            <h4 className="text-base font-bold text-gray-900 mb-2">Room Overview</h4>
+            <h4 className="text-base font-bold text-gray-900 mb-2">About this room</h4>
             <p className="text-gray-600 text-sm leading-relaxed">
-              Designed for optimal rest and convenience, {room.room_number} features contemporary interior finishes, premium bedding, private ensuite bathroom with hot shower, air conditioning, and high-speed Wi-Fi.
+              {room.description && room.description.trim()
+                ? room.description
+                : 'Message us on WhatsApp for details about this room.'}
             </p>
-          </div>
-
-          {/* Room Amenities */}
-          <div>
-            <h4 className="text-base font-bold text-gray-900 mb-3">Room Amenities Included</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-700">
-              <div className="flex items-center space-x-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                <i className="fa fa-wifi text-hotel-primary"></i>
-                <span className="font-medium">Free High-Speed Wi-Fi</span>
-              </div>
-              <div className="flex items-center space-x-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                <i className="fa fa-snowflake text-hotel-primary"></i>
-                <span className="font-medium">Individual Climate Control &amp; AC</span>
-              </div>
-              <div className="flex items-center space-x-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                <i className="fa fa-bath text-hotel-primary"></i>
-                <span className="font-medium">Private Ensuite Bathroom</span>
-              </div>
-              <div className="flex items-center space-x-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                <i className="fa fa-tv text-hotel-primary"></i>
-                <span className="font-medium">Flat Screen HD Television</span>
-              </div>
-              <div className="flex items-center space-x-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                <i className="fa fa-broom text-hotel-primary"></i>
-                <span className="font-medium">Daily Housekeeping Service</span>
-              </div>
-              <div className="flex items-center space-x-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                <i className="fa fa-bolt text-hotel-primary"></i>
-                <span className="font-medium">24/7 Power Generator Backup</span>
-              </div>
-            </div>
           </div>
 
           {/* Payment & Booking Policy */}
@@ -187,7 +158,9 @@ export const RoomDetailModal: React.FC<RoomDetailModalProps> = ({ room, onClose 
             </h5>
             <p>• <strong>Payment Method:</strong> Cash payment settled at check-in. No online transactions or card details needed.</p>
             <p>• <strong>Confirmation:</strong> Directly coordinated and confirmed via WhatsApp with hotel staff.</p>
-            <p>• <strong>Check-In:</strong> {HOTEL_INFO.checkInTime} &bull; <strong>Check-Out:</strong> {HOTEL_INFO.checkOutTime}</p>
+            {HOTEL_INFO.timesConfirmed && (
+              <p>• <strong>Check-In:</strong> {HOTEL_INFO.checkInTime} &bull; <strong>Check-Out:</strong> {HOTEL_INFO.checkOutTime}</p>
+            )}
           </div>
 
         </div>

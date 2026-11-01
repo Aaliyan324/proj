@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { HotelRoom, fetchRooms, fetchSettings, buildWhatsAppLink } from '../services/apiService';
-import { Reveal } from '../lib/Reveal';
 
 interface RoomAvailabilitySectionProps {
   onViewRoomDetails?: (room: HotelRoom) => void;
@@ -96,11 +95,10 @@ export const RoomAvailabilitySection: React.FC<RoomAvailabilitySectionProps> = (
   };
 
   return (
-    <section id="availability" className="py-20 bg-white border-t border-gray-100">
-      <Reveal>
+    <section id="availability-live" className="py-6 bg-transparent">
       <div className="max-w-7xl mx-auto px-4 lg:px-12">
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-10">
+        <div className="hidden" aria-hidden="true">
           <div className="inline-flex items-center space-x-2 text-xs font-bold uppercase tracking-widest text-hotel-primary bg-blue-50 px-3.5 py-1.5 rounded-full mb-3">
             <i className="fa fa-signal text-emerald-500"></i>
             <span>Step 3 &bull; Live Room Availability</span>
@@ -191,7 +189,7 @@ export const RoomAvailabilitySection: React.FC<RoomAvailabilitySectionProps> = (
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              All Rooms ({rooms.length})
+              All listed rooms ({rooms.length})
             </button>
             <button
               onClick={() => setFilterStatus('available')}
@@ -248,7 +246,7 @@ export const RoomAvailabilitySection: React.FC<RoomAvailabilitySectionProps> = (
               return (
                 <div
                   key={room.id}
-                  className="card-hover-elevate bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg duration-300 border border-gray-100 flex flex-col group"
+                  className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 flex flex-col group"
                 >
                   {/* Photo Container */}
                   <div className="h-44 w-full relative overflow-hidden bg-gray-100">
@@ -320,7 +318,6 @@ export const RoomAvailabilitySection: React.FC<RoomAvailabilitySectionProps> = (
           </div>
         )}
       </div>
-      </Reveal>
     </section>
   );
 };

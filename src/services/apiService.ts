@@ -1297,3 +1297,35 @@ export async function deleteHotelImage(imageId: string): Promise<boolean> {
     return false;
   }
 }
+
+// -------------------------------------------------------------
+// ROOM CATEGORY AVAILABILITY (public summary of the 42 rooms)
+// -------------------------------------------------------------
+export interface RoomCategoryStatRow {
+  key: string; name: string; total: number;
+  available: number; occupied: number; reserved: number; maintenance: number;
+  confirmed: number;
+}
+
+export async function fetchRoomCategoryStats(): Promise<{ total: number; categories: RoomCategoryStatRow[] }> {
+  const res = await fetch('/api/room-categories');
+  if (!res.ok) throw new Error('Could not load room categories');
+  return res.json();
+}
+
+export async function saveRoomCategoryStats(
+  key: string,
+  values: { available: number; occupied: number; reserved: number; maintenance: number }
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`/api/admin/room-categories/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(values)
+    });
+    const data = await res.json().catch(() => ({}));
+    return { success: res.ok && data.success, message: data.message || (res.ok ? 'Saved' : 'Could not save') };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Network error' };
+  }
+}

@@ -328,6 +328,46 @@ app.get('/api/settings', wrap(async (_req, res) => {
   });
 }));
 
+// 5b. Room-category availability summary (redesigned availability scene).
+// Public read; authenticated edit. Counts are owner-confirmed numbers kept
+// per category and must always add up to that category's total.
+async function roomCategoryPayload(): Promise<{ total: number; categories: any[] }> {
+  const categories = await getAll(`SELECT * FROM room_category_stats ORDER BY display_order ASC`);
+  const total = categories.reduce((n: number, c: any) => n + Number(c.total || 0), 0);
+  return { total, categories };
+}
+
+app.get('/api/room-categories', wrap(async (_req, res) => {
+  res.json(await roomCategoryPayload());
+}));
+
+app.put('/api/admin/room-categories/:key', requireAdminAuth, wrap(async (req, res) => {
+  const key = String(req.params.key);
+  const row = await getOne<{ total: number }>(`SELECT total FROM room_category_stats WHERE key = $1`, [key]);
+  if (!row) {
+    res.status(404).json({ success: false, message: 'Unknown room category.' });
+    return;
+  }
+  const { available, occupied, reserved, maintenance } = req.body || {};
+  const nums = [available, occupied, reserved, maintenance].map((x) => (typeof x === 'number' ? x : Number(x)));
+  if (nums.some((n) => !Number.isInteger(n) || n < 0)) {
+    res.status(400).json({ success: false, message: 'Each count must be a whole number, zero or more.' });
+    return;
+  }
+  const sum = nums[0] + nums[1] + nums[2] + nums[3];
+  const total = Number(row.total);
+  if (sum !== total) {
+    res.status(400).json({ success: false, message: `The four counts add up to ${sum}, but this category has ${total} rooms. They must match exactly.` });
+    return;
+  }
+  await runQuery(
+    `UPDATE room_category_stats SET available = $1, occupied = $2, reserved = $3, maintenance = $4, confirmed = 1, updated_at = $5 WHERE key = $6`,
+    [nums[0], nums[1], nums[2], nums[3], new Date().toISOString(), key]
+  );
+  const payload = await roomCategoryPayload();
+  res.json({ success: true, ...payload });
+}));
+
 // ------------------------------------------
 // AUTHENTICATION MIDDLEWARE
 // ------------------------------------------

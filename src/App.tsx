@@ -1,34 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
-import { Topbar } from './components/Topbar';
-import { Navbar } from './components/Navbar';
-import { HeroCarousel } from './components/HeroCarousel';
-import { AboutSection } from './components/AboutSection';
-import { FeaturedRoomsSection } from './components/FeaturedRoomsSection';
-import { WalkthroughSection } from './components/WalkthroughSection';
-import { ServicesSection } from './components/ServicesSection';
-import { DiningSection } from './components/DiningSection';
-import { GallerySection } from './components/GallerySection';
-import { ContactSection } from './components/ContactSection';
-import { Footer } from './components/Footer';
-
-import { EntranceSection } from './components/EntranceSection';
-import { ReceptionSection } from './components/ReceptionSection';
-import { RoomAvailabilitySection } from './components/RoomAvailabilitySection';
-import { ParkingSection } from './components/ParkingSection';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { SmoothScroll, scrollToTarget, setScrollLocked } from './motion/SmoothScroll';
+import { CinemaNav } from './components/cinema/CinemaNav';
+import { CinemaHome } from './components/cinema/CinemaHome';
+import { AvailabilityScene } from './components/cinema/AvailabilityScene';
+import { DiningScene } from './components/cinema/DiningScene';
+import { ParkingScene } from './components/cinema/ParkingScene';
+import { ViewpointsScene } from './components/cinema/ViewpointsScene';
+import { GalleryScene } from './components/cinema/GalleryScene';
+import { AboutScene } from './components/cinema/AboutScene';
+import { CinemaFooter } from './components/cinema/CinemaFooter';
+import { ContactSection } from './components/ContactSection'; // Direct Booking: original logic, cinematic presentation
+import { WalkthroughSection } from './components/WalkthroughSection'; // admin-published walkthrough (hidden when none)
+import { FeaturedRoomsSection } from './components/FeaturedRoomsSection'; // published room catalogue (hidden when none)
 
 import { RoomDetailModal } from './components/RoomDetailModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { AdminDashboardModal } from './components/AdminDashboardModal';
 
 import { HotelRoom, isAdminAuthenticated, adminLogout } from './services/apiService';
-import { initSmoothScroll, scrollToTarget } from './lib/motion';
 import { RoomsPage } from './pages/RoomsPage';
 import { RoomDetailPage } from './pages/RoomDetailPage';
 
 function Home() {
-  const navigate = useNavigate();
-
   // Admin Authentication State
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminLoginOpen, setAdminLoginOpen] = useState(false);
@@ -36,7 +30,6 @@ function Home() {
 
   // Language State
   const [selectedLanguage, setSelectedLanguage] = useState<string>('English');
-  const [activeSection, setActiveSection] = useState<string>('home');
 
   // Modal States
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -49,10 +42,6 @@ function Home() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
-
-  // Public-site smooth scrolling (Lenis + GSAP ticker integration).
-  // Scoped here on purpose: modals and the admin dashboard keep native scrolling.
-  useEffect(() => initSmoothScroll(), []);
 
   // URL Path Detection & Route Protection
   useEffect(() => {
@@ -103,36 +92,19 @@ function Home() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Update active section on scroll
+  // Freeze page scrolling while a modal is open (the modals scroll internally).
   useEffect(() => {
-    const handleScroll = () => {
-      const sections = ['home', 'entrance', 'reception', 'availability', 'rooms', 'dining', 'services', 'parking', 'gallery', 'about', 'contact'];
-      const scrollPosition = window.scrollY + 250;
-
-      for (const sectionId of sections) {
-        const el = document.getElementById(sectionId);
-        if (el) {
-          const top = el.offsetTop;
-          const height = el.offsetHeight;
-          if (scrollPosition >= top && scrollPosition < top + height) {
-            setActiveSection(sectionId);
-            break;
-          }
-        }
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+    setScrollLocked(adminLoginOpen || adminDashboardOpen || detailModalOpen);
+    return () => setScrollLocked(false);
+  }, [adminLoginOpen, adminDashboardOpen, detailModalOpen]);
 
   // When returning to Home from another route with a pending section target
-  // (stored by Navbar before navigating home), scroll to it once sections mount.
+  // (stored by the legacy Navbar before navigating home), scroll to it once scenes mount.
   useEffect(() => {
     const target = sessionStorage.getItem('scrollTo');
     if (target) {
       sessionStorage.removeItem('scrollTo');
-      requestAnimationFrame(() => scrollToTarget(target, { offset: -16 }));
+      requestAnimationFrame(() => scrollToTarget(target));
     }
   }, []);
 
@@ -179,21 +151,15 @@ function Home() {
     setDetailModalOpen(true);
   };
 
-  const handleSearch = (criteria: {
-    checkIn: string;
-    checkOut: string;
-    category: string;
-    guests: number;
-  }) => {
-    showToast(`Showing accommodations available for ${criteria.guests} guests from ${criteria.checkIn} to ${criteria.checkOut}`);
-  };
-
   const handleScrollToRooms = () => {
-    navigate('/rooms');
+    // Room categories scene; falls back to the live availability board below it.
+    scrollToTarget(document.getElementById('rooms') ? '#rooms' : '#availability');
   };
 
   return (
-    <div className="min-h-screen bg-white text-gray-800 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#16211d] text-gray-800 flex flex-col font-sans">
+      <SmoothScroll />
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-blue-950 text-white px-6 py-3 rounded-full shadow-2xl border border-amber-400/60 text-xs sm:text-sm font-semibold flex items-center space-x-2">
@@ -202,63 +168,37 @@ function Home() {
         </div>
       )}
 
-      {/* Topbar: Clean, No Pricing or Currency Dropdowns */}
-      <Topbar
-        selectedLanguage={selectedLanguage}
-        onSelectLanguage={setSelectedLanguage}
+      {/* Navigation: minimal bar + full-screen menu (admin access lives in the menu) */}
+      <CinemaNav
+        isAdmin={isAdmin}
+        onOpenAdminLogin={handleOpenAdminLogin}
+        onOpenAdminDashboard={() => {
+          window.history.pushState(null, '', '/admin/dashboard');
+          setAdminDashboardOpen(true);
+        }}
       />
 
-      {/* Navigation Header */}
-      <Navbar
-        onOpenBooking={handleScrollToRooms}
-        activeSection={activeSection}
-      />
-
-      {/* 1. Home / Hero Experience */}
-      <HeroCarousel
-        onSearch={handleSearch}
-        onQuickBook={handleScrollToRooms}
-      />
-
-      {/* 2. Entrance: Arrival & Glass Doorway Architecture */}
-      <EntranceSection onExploreRooms={handleScrollToRooms} />
+      {/* Cinematic homepage: opening scene + story + entrance/rooms/reception */}
+      <CinemaHome />
 
       {/* Website Walkthrough: admin-written content from the database (hidden when none is published) */}
       <WalkthroughSection />
 
-      {/* 3. Reception: 24/7 Front Desk, Check-In & Inquiries */}
-      <ReceptionSection />
+      {/* Active Booking: category availability board + per-room WhatsApp booking */}
+      <AvailabilityScene onViewRoomDetails={handleViewRoomDetails} />
 
-      {/* 4. Live Room Availability: Real-Time Persistent Room Matrix */}
-      <RoomAvailabilitySection onViewRoomDetails={handleViewRoomDetails} />
-
-      {/* 5. Featured Rooms & Suites: published rooms from the database */}
+      {/* Featured Rooms & Suites: published catalogue rooms (hidden when none are published) */}
       <FeaturedRoomsSection />
 
-      {/* Kitchen & Dining: Dynamic Food Items from Database with Availability Times */}
-      <DiningSection />
-
-      {/* Hotel Amenities & Services */}
-      <ServicesSection />
-
-      {/* On-Site Parking Section */}
-      <ParkingSection />
-
-      {/* Photo Gallery: Authentic User-Provided Hotel Room Photos */}
-      <GallerySection />
-
-      {/* About Section: 20 Rooms, Hospitality, & Mission */}
-      <AboutSection
-        onExploreRooms={handleScrollToRooms}
+      <DiningScene />
+      <ParkingScene />
+      <ViewpointsScene />
+      <GalleryScene />
+      <AboutScene />
+      <ContactSection /> {/* Direct Booking */}
+      <CinemaFooter
         onOpenBooking={handleScrollToRooms}
-      />
-
-      {/* Contact Section: Official WhatsApp Booking Channel & Cash Payment Policy */}
-      <ContactSection />
-
-      {/* Footer: Quick Links, WhatsApp Contact, Staff Login */}
-      <Footer
-        onOpenBooking={handleScrollToRooms}
+        onOpenAdminLogin={handleOpenAdminLogin}
         selectedLanguage={selectedLanguage}
         onSelectLanguage={setSelectedLanguage}
       />

@@ -47,6 +47,7 @@ export const HOTEL_INFO = {
   email: "info@redrockhotel.example",
   checkInTime: "2:00 PM",
   checkOutTime: "12:00 PM",
+  timesConfirmed: false, // set true once the owner confirms check-in/out times
   paymentPolicy: "Cash Payment upon arrival at hotel reception. Booking confirmed via WhatsApp."
 };
 

@@ -31,6 +31,7 @@ import {
 } from '../services/apiService';
 import AdminRoomCatalogue from './admin/AdminRoomCatalogue';
 import AdminWalkthroughEditor from './admin/AdminWalkthroughEditor';
+import { CategoryAvailabilityAdmin } from './CategoryAvailabilityAdmin';
 
 interface AdminDashboardModalProps {
   isOpen: boolean;
@@ -43,7 +44,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   onClose,
   onLogout
 }) => {
-  const [activeTab, setActiveTab] = useState<'rooms' | 'catalogue' | 'walkthrough' | 'facilities' | 'gallery' | 'food' | 'settings' | 'security'>('rooms');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'categories' | 'catalogue' | 'walkthrough' | 'facilities' | 'gallery' | 'food' | 'settings' | 'security'>('rooms');
   
   // Data States
   const [rooms, setRooms] = useState<HotelRoom[]>([]);
@@ -665,6 +666,18 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             </button>
 
             <button
+              onClick={() => setActiveTab('categories')}
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                activeTab === 'categories'
+                  ? 'bg-hotel-primary text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <i className="fa fa-pie-chart text-emerald-500"></i>
+              <span>Category Availability</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('catalogue')}
               className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center space-x-2 cursor-pointer ${
                 activeTab === 'catalogue'
@@ -781,6 +794,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
 
           {/* ============================================================== */}
+          {/* TAB: CATEGORY AVAILABILITY (owner-confirmed per-category counts shown on the homepage) */}
+          {/* ============================================================== */}
+          {activeTab === 'categories' && (
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200">
+              <CategoryAvailabilityAdmin />
+            </div>
+          )}
+
           {/* TAB: ROOMS CATALOGUE (published listing fields + Blob gallery) */}
           {/* ============================================================== */}
           {activeTab === 'catalogue' && (
