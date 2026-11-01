@@ -8,5 +8,8 @@ coverage/
 !.env.example
 
 # Local legacy SQLite data (live records + WAL side files) — never commit.
-data/
+# Anchored to the repo root only: an unanchored `data/` also swallowed src/data/.
+/data/
+/red-rock-murree/data/
+/red-rock-murree/backups/
 .vercel/
