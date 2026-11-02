@@ -50,7 +50,7 @@ export const CinemaFooter: React.FC<FooterProps> = ({ onOpenAdminLogin }) => {
               rel="noopener noreferrer"
               className="underline underline-offset-4 transition-opacity hover:opacity-70"
             >
-              Syed M Tayyab
+              Syed Muhammad Tayyab
             </a>
           </span>
         </p>
