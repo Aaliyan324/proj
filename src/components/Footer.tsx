@@ -131,9 +131,20 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-blue-900/60 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500">
+        <div className="border-t border-blue-900/60 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500">
           <p>&copy; {new Date().getFullYear()} {HOTEL_INFO.name}. All rights reserved.</p>
-          <div className="flex items-center space-x-4 mt-3 sm:mt-0">
+          <p className="flex items-center">
+            <span className="me-1.5">Designed &amp; developed by</span>
+            <a
+              href="https://syed-m-tayyab-portfolio.netlify.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-amber-400 hover:text-amber-300 font-semibold transition-colors"
+            >
+              Syed M Tayyab
+            </a>
+          </p>
+          <div className="flex items-center space-x-4">
             <span className="text-emerald-400 flex items-center">
               <i className="fa fa-circle text-[8px] me-1.5 animate-pulse"></i>
               Direct WhatsApp Reservations

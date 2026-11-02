@@ -41,11 +41,11 @@ async function main() {
   const now = new Date().toISOString();
   const insertCount = { admin: 0, rooms: 0, facility: 0, gallery: 0, food: 0, settings: 0 };
 
-  // 1. Default admin — password from ADMIN_DEFAULT_PASSWORD, else "admin123" (dev only).
-  const { hash, salt } = hashPassword(process.env.ADMIN_DEFAULT_PASSWORD || 'admin123');
+  // 1. Default admin — password from ADMIN_DEFAULT_PASSWORD, else "Admin123" (dev only).
+  const { hash, salt } = hashPassword(process.env.ADMIN_DEFAULT_PASSWORD || 'Admin123');
   await runQuery(
     `INSERT INTO admin (username, password_hash, salt, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (username) DO NOTHING`,
-    ['admin', hash, salt, now]
+    ['Admin', hash, salt, now]
   );
 
   // 2. Exactly 20 rooms (Room 01 - Room 20).
@@ -117,7 +117,7 @@ async function main() {
 
   console.log('[seed] Completed (existing rows were preserved):', insertCount);
   if (!process.env.ADMIN_DEFAULT_PASSWORD) {
-    console.log('[seed] Default admin: username "admin", password "admin123" — change it immediately after first login.');
+    console.log('[seed] Default admin: username "Admin", password "Admin123" — change it immediately after first login.');
   }
 
   function insertStmtCount(key: keyof typeof insertCount) { (insertCount as any)[key]++; }
