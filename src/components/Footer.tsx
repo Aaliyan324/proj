@@ -41,7 +41,6 @@ export const Footer: React.FC<FooterProps> = ({
               Quick Navigation
             </h4>
             <ul className="space-y-2.5 text-xs sm:text-sm">
-              <li>
                 <button
                   onClick={() => navigate('/rooms')}
                   className="hover:text-amber-400 transition-colors flex items-center text-left"

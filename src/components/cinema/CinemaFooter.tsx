@@ -40,7 +40,20 @@ export const CinemaFooter: React.FC<FooterProps> = ({ onOpenAdminLogin }) => {
             <button type="button" className="t-small text-fog underline underline-offset-4" onClick={onOpenAdminLogin}>Staff login</button>
           </div>
         </div>
-        <p className="ft-fade t-small text-fog">&copy; {new Date().getFullYear()} Red Rock Murree</p>
+        <p className="ft-fade t-small text-fog flex flex-col items-center gap-1 sm:flex-row sm:justify-between">
+          <span>&copy; {new Date().getFullYear()} Red Rock Murree</span>
+          <span>
+            Designed &amp; developed by{' '}
+            <a
+              href="https://syed-m-tayyab-portfolio.netlify.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-4 transition-opacity hover:opacity-70"
+            >
+              Syed M Tayyab
+            </a>
+          </span>
+        </p>
       </div>
     </footer>
   );
